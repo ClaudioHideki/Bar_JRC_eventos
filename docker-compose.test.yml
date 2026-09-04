@@ -1,0 +1,15 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: jrc-passaporte-postgres-test
+    environment:
+      POSTGRES_USER: jrc_test_user
+      POSTGRES_PASSWORD: jrc_test_password
+      POSTGRES_DB: jrc_passaporte_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jrc_test_user -d jrc_passaporte_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

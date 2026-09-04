@@ -1,0 +1,319 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  PARTICIPANT
+  ATTENDANT
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum InvitationStatus {
+  AVAILABLE
+  SENT
+  USED
+  REVOKED
+  EXPIRED
+}
+
+enum RegistrationStatus {
+  PENDING_OTP
+  OTP_VERIFIED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum PassportStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum StampStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum QrChallengeStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+// -----------------------------------------------------------------------------
+// Better Auth - Tabelas de Autenticação + Campos de Domínio
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  name          String
+  role          UserRole   @default(PARTICIPANT)
+  status        UserStatus @default(PENDING)
+  emailVerified Boolean    @default(false)
+  image         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  passports       Passport[]
+  stampsIssued    Stamp[]      @relation("AttendantStamps")
+  auditLogs       AuditLog[]
+  createdInvites  Invitation[] @relation("CreatedInvitations")
+  usedInvite      Invitation?  @relation("UsedInvitation")
+  cancelledStamps Stamp[]      @relation("CancelledStamps")
+
+  @@index([email])
+  @@index([role, status])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id           String    @id @default(uuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// -----------------------------------------------------------------------------
+// Entidades de Domínio do Passaporte JRC
+// -----------------------------------------------------------------------------
+
+model Program {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  capacity  Int           @default(30)
+  status    ProgramStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  invitations   Invitation[]
+  passports     Passport[]
+  events        Event[]
+  registrations PendingRegistration[]
+}
+
+model Invitation {
+  id             String           @id @default(uuid())
+  programId      String
+  tokenHash      String           @unique
+  status         InvitationStatus @default(AVAILABLE)
+  claimedName    String?
+  claimedEmail   String?
+  usedById       String?          @unique
+  createdById    String?
+  sentAt         DateTime?
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  program       Program               @relation(fields: [programId], references: [id], onDelete: Restrict)
+  usedBy        User?                 @relation("UsedInvitation", fields: [usedById], references: [id], onDelete: Restrict)
+  createdBy     User?                 @relation("CreatedInvitations", fields: [createdById], references: [id], onDelete: SetNull)
+  registrations PendingRegistration[]
+
+  @@index([tokenHash])
+  @@index([programId, status])
+}
+
+model PendingRegistration {
+  id              String             @id @default(uuid())
+  programId       String
+  invitationId    String
+  normalizedEmail String
+  name            String
+  status          RegistrationStatus @default(PENDING_OTP)
+  expiresAt       DateTime
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  program    Program    @relation(fields: [programId], references: [id], onDelete: Restrict)
+  invitation Invitation @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+
+  @@index([normalizedEmail])
+  @@index([invitationId])
+}
+
+model Passport {
+  id             String         @id @default(uuid())
+  programId      String
+  userId         String         @unique
+  passportNumber String         @unique
+  status         PassportStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  archivedAt     DateTime?
+
+  program      Program       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  stamps       Stamp[]
+  qrChallenges QrChallenge[]
+
+  @@index([passportNumber])
+  @@index([programId])
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  programId   String
+  name        String
+  description String?
+  location    String?
+  startDate   DateTime
+  endDate     DateTime
+  status      EventStatus @default(DRAFT)
+  orderIndex  Int         @default(0)
+  stampIcon   String      @default("standard")
+  stampColor  String      @default("#cdaa63")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
+  stamps  Stamp[]
+
+  @@index([programId, status])
+  @@index([orderIndex])
+}
+
+model Stamp {
+  id                 String      @id @default(uuid())
+  passportId         String
+  eventId            String
+  attendantId        String
+  status             StampStatus @default(CONFIRMED)
+  stampedAt          DateTime    @default(now())
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancellationReason String?
+  createdAt          DateTime    @default(now())
+
+  passport    Passport  @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  attendant   User      @relation("AttendantStamps", fields: [attendantId], references: [id], onDelete: Restrict)
+  cancelledBy User?     @relation("CancelledStamps", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  // Migration manual aplica o índice único parcial:
+  // CREATE UNIQUE INDEX "Stamp_confirmed_passport_event_key" ON "Stamp" ("passportId", "eventId") WHERE "status" = 'CONFIRMED';
+  @@index([passportId])
+  @@index([eventId])
+  @@index([attendantId])
+}
+
+model QrChallenge {
+  id         String            @id @default(uuid())
+  passportId String
+  tokenHash  String            @unique
+  status     QrChallengeStatus @default(ACTIVE)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime          @default(now())
+
+  passport Passport @relation(fields: [passportId], references: [id], onDelete: Restrict)
+
+  @@index([tokenHash])
+  @@index([passportId, status])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id               String   @id @default(uuid())
+  actorUserId      String?
+  actorRole        String?
+  action           String
+  entity           String
+  entityId         String?
+  requestId        String?
+  safeMetadata     Json?
+  ipHash           String?
+  userAgentSummary String?
+  createdAt        DateTime @default(now())
+
+  user User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model RateLimitBucket {
+  id        String   @id @default(uuid())
+  keyHash   String   @unique
+  points    Int      @default(0)
+  expireAt  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([keyHash])
+  @@index([expireAt])
+}

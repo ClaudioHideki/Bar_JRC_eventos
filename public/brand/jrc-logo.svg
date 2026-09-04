@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="10" fill="#0d2235"/>
+  <text x="30" y="40" font-family="system-ui, sans-serif" font-weight="900" font-size="28" fill="#cdaa63" letter-spacing="3">JRC</text>
+  <text x="100" y="38" font-family="system-ui, sans-serif" font-weight="600" font-size="13" fill="#f7f8fa" letter-spacing="1">PASSAPORTE</text>
+  <line x1="90" y1="15" x2="90" y2="45" stroke="#1565d8" stroke-width="2"/>
+</svg>

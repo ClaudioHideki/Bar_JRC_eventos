@@ -1,0 +1,57 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jrc-passaporte-app
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-jrc_user}:${POSTGRES_PASSWORD:-jrc_secure_password}@postgres:5432/${POSTGRES_DB:-jrc_passaporte}?schema=public
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://localhost:3000}
+      - INVITATION_TOKEN_SECRET=${INVITATION_TOKEN_SECRET}
+      - QR_TOKEN_SECRET=${QR_TOKEN_SECRET}
+      - RATE_LIMIT_SECRET=${RATE_LIMIT_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - APP_TIMEZONE=${APP_TIMEZONE:-America/Sao_Paulo}
+      - NODE_ENV=production
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jrc-internal-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: jrc-passaporte-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jrc_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jrc_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-jrc_passaporte}
+    volumes:
+      - jrc_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jrc_user} -d ${POSTGRES_DB:-jrc_passaporte}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jrc-internal-network
+    # NOTA DE SEGURANÇA: PostgreSQL NUNCA exposto publicamente na internet.
+
+volumes:
+  jrc_pg_data:
+    name: jrc_passaporte_postgres_data
+
+networks:
+  jrc-internal-network:
+    name: jrc_passaporte_network
+    driver: bridge
