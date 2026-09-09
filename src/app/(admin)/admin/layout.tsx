@@ -18,7 +18,7 @@ export default async function AdminLayout({
   const navLinks = [
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/temas", label: "Temas (Marketing)" },
-    { href: "/admin/convites", label: "Convites (30)" },
+    { href: "/admin/convites", label: "Convites" },
     { href: "/admin/eventos", label: "Eventos" },
     { href: "/admin/participantes", label: "Participantes" },
     { href: "/admin/ranking", label: "Ranking" },

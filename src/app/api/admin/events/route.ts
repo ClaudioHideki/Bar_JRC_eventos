@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, description, location, startDate, endDate, stampIcon, stampColor } = body;
+    const { name, description, location, startDate, endDate, stampIcon, stampColor, themeImageUrl } = body;
 
     if (!name || !startDate || !endDate) {
       return NextResponse.json({ error: "Nome, data inicial e final são obrigatórios." }, { status: 400 });
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         orderIndex,
         stampIcon: stampIcon || "standard",
         stampColor: stampColor || "#cdaa63",
+        themeImageUrl: themeImageUrl?.trim() || null,
       },
     });
 
@@ -85,15 +86,33 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { eventId, status } = body;
+    const { eventId, status, name, description, location, startDate, endDate, themeImageUrl } = body;
 
-    if (!eventId || !status) {
-      return NextResponse.json({ error: "ID e novo status do evento são obrigatórios." }, { status: 400 });
+    if (!eventId) {
+      return NextResponse.json({ error: "ID do evento é obrigatório." }, { status: 400 });
     }
+
+    const updateData: {
+      status?: EventStatus;
+      name?: string;
+      description?: string | null;
+      location?: string | null;
+      startDate?: Date;
+      endDate?: Date;
+      themeImageUrl?: string | null;
+    } = {};
+
+    if (status) updateData.status = status;
+    if (name) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description?.trim() || null;
+    if (location !== undefined) updateData.location = location?.trim() || null;
+    if (startDate) updateData.startDate = new Date(startDate);
+    if (endDate) updateData.endDate = new Date(endDate);
+    if (themeImageUrl !== undefined) updateData.themeImageUrl = themeImageUrl?.trim() || null;
 
     const event = await prisma.event.update({
       where: { id: eventId },
-      data: { status },
+      data: updateData,
     });
 
     return NextResponse.json(event, { status: 200 });

@@ -155,7 +155,7 @@ model Program {
   id            String        @id @default(uuid())
   name          String
   slug          String        @unique
-  capacity      Int           @default(30)
+  capacity      Int           @default(999999)
   status        ProgramStatus @default(ACTIVE)
   themeImageUrl String?
   themeTitle    String?
@@ -244,6 +244,7 @@ model Event {
   orderIndex  Int         @default(0)
   stampIcon   String      @default("standard")
   stampColor  String      @default("#cdaa63")
+  themeImageUrl String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

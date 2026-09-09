@@ -46,6 +46,11 @@ export default async function PassportPage() {
   const allEvents = await getProgramEvents(passport.programId);
   const upcomingEvents = await getProgramUpcomingEvents(passport.programId);
 
+  // Identifica evento ativo com arte personalizada (se houver)
+  const activeEventWithTheme =
+    upcomingEvents.find((e) => e.themeImageUrl) ||
+    allEvents.find((e) => e.status === "ACTIVE" && e.themeImageUrl);
+
   return (
     <PassportClient
       userName={user?.name || session.user.name}
@@ -55,12 +60,15 @@ export default async function PassportPage() {
       passportNumber={passport.passportNumber}
       programName={passport.program.name}
       themeImageUrl={passport.program.themeImageUrl || "/brand/passaporte-template.jpg"}
+      activeEventThemeUrl={activeEventWithTheme?.themeImageUrl || null}
+      activeEventName={activeEventWithTheme?.name || null}
       events={allEvents.map((e) => ({
         id: e.id,
         name: e.name,
         description: e.description,
         orderIndex: e.orderIndex,
         startDate: e.startDate.toISOString(),
+        themeImageUrl: e.themeImageUrl,
       }))}
       stamps={passport.stamps.map((s) => ({
         id: s.id,
@@ -78,6 +86,7 @@ export default async function PassportPage() {
         description: e.description,
         startDate: e.startDate.toISOString(),
         location: e.location,
+        themeImageUrl: e.themeImageUrl,
       }))}
     />
   );

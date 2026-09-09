@@ -29,6 +29,7 @@ export default async function AdminEventosPage() {
         status: e.status,
         orderIndex: e.orderIndex,
         confirmedCount: e._count.stamps,
+        themeImageUrl: e.themeImageUrl,
       }))}
     />
   );

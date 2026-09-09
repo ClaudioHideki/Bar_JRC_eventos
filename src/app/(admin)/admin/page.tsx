@@ -39,7 +39,7 @@ export default async function AdminDashboardPage() {
           Painel Executivo — {program.name}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Acompanhamento em tempo real de convites, ativações e presenças dos 30 participantes convidados.
+          Acompanhamento em tempo real de convites, ativações e presenças dos participantes.
         </p>
       </div>
 
@@ -47,9 +47,11 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {/* Capacidade do Programa */}
         <div className="rounded-2xl border border-primary/20 bg-surface p-4 shadow-lg">
-          <span className="text-xs text-muted uppercase font-semibold">Capacidade Total</span>
-          <p className="mt-2 text-3xl font-black text-premium">{program.capacity}</p>
-          <span className="text-[11px] text-muted">Vagas exclusivas</span>
+          <span className="text-xs text-muted uppercase font-semibold">Capacidade do Programa</span>
+          <p className="mt-2 text-3xl font-black text-premium">
+            {program.capacity >= 9999 ? "Ilimitada" : program.capacity}
+          </p>
+          <span className="text-[11px] text-muted">Emissão livre</span>
         </div>
 
         {/* Participantes Ativos */}
@@ -74,10 +76,10 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Detalhamento do Funil dos 30 Convites */}
+      {/* Detalhamento do Funil de Convites */}
       <section aria-labelledby="funnel-heading" className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-xl space-y-4">
         <h2 id="funnel-heading" className="text-base font-bold text-foreground">
-          Gestão de Convites do Programa (Teto Máximo: 30)
+          Gestão de Convites do Programa
         </h2>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 text-center">

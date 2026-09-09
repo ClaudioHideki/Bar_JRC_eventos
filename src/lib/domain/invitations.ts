@@ -18,7 +18,7 @@ export async function getOrCreateDefaultProgram() {
       data: {
         name: "Passaporte JRC 2026",
         slug: defaultSlug,
-        capacity: 30,
+        capacity: 999999,
         status: ProgramStatus.ACTIVE,
       },
     });

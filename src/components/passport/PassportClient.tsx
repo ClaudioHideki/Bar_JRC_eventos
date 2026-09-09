@@ -23,6 +23,7 @@ interface EventItem {
   description: string | null;
   orderIndex: number;
   startDate: string;
+  themeImageUrl?: string | null;
 }
 
 interface UpcomingEventData {
@@ -31,6 +32,7 @@ interface UpcomingEventData {
   description: string | null;
   startDate: string;
   location: string | null;
+  themeImageUrl?: string | null;
 }
 
 interface PassportClientProps {
@@ -41,6 +43,8 @@ interface PassportClientProps {
   passportNumber: string;
   programName: string;
   themeImageUrl: string;
+  activeEventThemeUrl?: string | null;
+  activeEventName?: string | null;
   events: EventItem[];
   stamps: StampData[];
   upcomingEvents: UpcomingEventData[];
@@ -59,18 +63,28 @@ export function PassportClient({
   passportNumber,
   programName,
   themeImageUrl,
+  activeEventThemeUrl,
+  activeEventName,
   events,
   stamps,
   upcomingEvents,
 }: PassportClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const passportCardRef = useRef<HTMLElement>(null);
 
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(initialUserImage);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
+
+  // Arte selecionada para o passaporte (padrão ou do evento ativo)
+  const initialTheme = activeEventThemeUrl || themeImageUrl || "/brand/passaporte-template.jpg";
+  const [displayedThemeUrl, setDisplayedThemeUrl] = useState<string>(initialTheme);
+  const [displayedThemeTitle, setDisplayedThemeTitle] = useState<string>(
+    activeEventThemeUrl && activeEventName ? `Edição: ${activeEventName}` : "Arte Oficial JRC"
+  );
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -123,6 +137,18 @@ export function PassportClient({
     reader.readAsDataURL(file);
   };
 
+  const switchThemeToEvent = (evtName: string, imgUrl: string) => {
+    setDisplayedThemeUrl(imgUrl);
+    setDisplayedThemeTitle(`Edição: ${evtName}`);
+    passportCardRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const resetThemeToOfficial = () => {
+    setDisplayedThemeUrl(themeImageUrl || "/brand/passaporte-template.jpg");
+    setDisplayedThemeTitle("Arte Oficial JRC");
+    passportCardRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   // Mapeia os 12 slots mensais (Janeiro a Dezembro)
   const slots = Array.from({ length: 12 }).map((_, idx) => {
     const event = events[idx];
@@ -152,7 +178,7 @@ export function PassportClient({
         </div>
         <button
           onClick={handleLogout}
-          className="rounded-lg border border-muted/30 px-3 py-1.5 text-xs text-muted hover:text-foreground transition hover:border-muted/60"
+          className="rounded-lg border border-muted/30 px-3 py-1.5 text-xs text-muted hover:text-foreground transition hover:border-muted/60 cursor-pointer"
         >
           Sair
         </button>
@@ -194,7 +220,7 @@ export function PassportClient({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingPhoto}
                 title="Trocar Foto"
-                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow-md hover:bg-primary/90 transition text-[10px]"
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow-md hover:bg-primary/90 transition text-[10px] cursor-pointer"
               >
                 {uploadingPhoto ? "..." : "📷"}
               </button>
@@ -238,7 +264,7 @@ export function PassportClient({
             </div>
             <button
               onClick={() => setIsQrOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-95 active:scale-95"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-95 active:scale-95 cursor-pointer"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
@@ -255,28 +281,46 @@ export function PassportClient({
 
         {/* PASSAPORTE OFICIAL — ARTE BAR JRC COM OS 12 CARIMBOS */}
         <section
+          ref={passportCardRef}
           aria-label="Passaporte Oficial Bar JRC"
           className="relative overflow-hidden rounded-3xl border-2 border-premium/50 shadow-2xl shadow-primary/20 bg-black"
         >
-          {/* Imagem de Fundo Oficial do Bar JRC */}
+          {/* Seletor / Indicador da Arte Exibida */}
+          <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between pointer-events-auto">
+            <span className="rounded-full bg-black/70 backdrop-blur-md px-3 py-1 text-[10px] font-bold text-amber-300 border border-amber-400/30">
+              🎨 {displayedThemeTitle}
+            </span>
+
+            {displayedThemeTitle !== "Arte Oficial JRC" && (
+              <button
+                type="button"
+                onClick={resetThemeToOfficial}
+                className="rounded-full bg-black/70 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-white/80 hover:text-white border border-white/20 transition cursor-pointer"
+              >
+                Voltar à Arte Oficial
+              </button>
+            )}
+          </div>
+
+          {/* Imagem de Fundo Dinâmica do Passaporte */}
           <div className="relative w-full aspect-[4/5] sm:aspect-[3/4] overflow-hidden">
             <Image
-              src={themeImageUrl}
+              src={displayedThemeUrl}
               alt="Passaporte JRC Oficial"
               fill
               priority
-              className="object-cover object-top select-none"
+              className="object-cover object-top select-none transition-opacity duration-500"
             />
 
             {/* Camada sutil de gradiente para contraste */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
 
             {/* GRADE INTERATIVA DOS 12 CARIMBOS (Posicionada sobre os quadrantes inferiores) */}
-            <div className="absolute bottom-[10%] inset-x-[6%] z-10">
+            <div className="absolute bottom-[8%] inset-x-[6%] z-10">
               <div className="text-center mb-2.5">
                 <span className="inline-block rounded-full bg-black/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur border border-amber-400/40">
                   {stamps.length === 12
-                    ? "🏆 Parabéns! 12 Carimbos Completados — Tema Escolhido!"
+                    ? "🏆 Parabéns! 12 Carimbos Completados — Dezembro é Seu!"
                     : `${stamps.length} de 12 Carimbos Conquistados`}
                 </span>
               </div>
@@ -330,7 +374,7 @@ export function PassportClient({
           </div>
         </section>
 
-        {/* Lista de Próximos Eventos Bar JRC */}
+        {/* Lista de Próximos Eventos Bar JRC com Arte Temática */}
         <section aria-labelledby="upcoming-heading" className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 id="upcoming-heading" className="text-xs font-bold tracking-wider text-muted uppercase">
@@ -348,23 +392,60 @@ export function PassportClient({
               {upcomingEvents.map((evt) => (
                 <div
                   key={evt.id}
-                  className="flex items-center justify-between rounded-2xl border border-primary/20 bg-surface p-3.5 transition hover:border-primary/40"
+                  className="flex items-center justify-between rounded-2xl border border-primary/20 bg-surface p-3.5 transition hover:border-primary/40 gap-3"
                 >
-                  <div>
-                    <h3 className="text-xs font-bold text-foreground">{evt.name}</h3>
-                    <p className="text-[11px] text-muted mt-0.5">
-                      {evt.location || "Espaço Bar JRC"} •{" "}
-                      {new Date(evt.startDate).toLocaleDateString("pt-BR", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Thumbnail da Arte Temática se houver */}
+                    {evt.themeImageUrl ? (
+                      <div className="relative h-12 w-10 shrink-0 rounded-lg overflow-hidden border border-secondary/40 shadow-md">
+                        <Image
+                          src={evt.themeImageUrl}
+                          alt={evt.name}
+                          fill
+                          className="object-cover object-top"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-xs font-bold text-premium">
+                        JRC
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-bold text-foreground truncate">{evt.name}</h3>
+                        {evt.themeImageUrl && (
+                          <span className="text-[9px] rounded-full bg-secondary/15 px-2 py-0.2 text-secondary font-bold border border-secondary/30">
+                            Arte Especial
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted mt-0.5">
+                        {evt.location || "Espaço Bar JRC"} •{" "}
+                        {new Date(evt.startDate).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary border border-secondary/30">
-                    Mensal
-                  </span>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    {evt.themeImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => switchThemeToEvent(evt.name, evt.themeImageUrl!)}
+                        className="rounded-lg border border-secondary/40 bg-secondary/10 px-2.5 py-1 text-[10px] font-bold text-secondary hover:bg-secondary/20 transition cursor-pointer"
+                      >
+                        Ver Arte
+                      </button>
+                    )}
+                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-semibold text-secondary border border-secondary/30">
+                      Mensal
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

@@ -13,5 +13,18 @@ export default async function TemasPage() {
     themeSubtitle: program?.themeSubtitle || "Dezembro é seu. Se você estiver lá até o fim.",
   };
 
-  return <AdminTemasClient initialTheme={initialTheme} />;
+  const events = program
+    ? await prisma.event.findMany({
+        where: { programId: program.id },
+        orderBy: { orderIndex: "asc" },
+        select: {
+          id: true,
+          name: true,
+          orderIndex: true,
+          themeImageUrl: true,
+        },
+      })
+    : [];
+
+  return <AdminTemasClient initialTheme={initialTheme} initialEvents={events} />;
 }

@@ -196,7 +196,7 @@ export function AdminConvitesClient({
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestão de Convites Oficiais</h1>
           <p className="text-sm text-muted">
-            Capacidade: {activeCount} / {programCapacity} convites ocupados ou disponíveis
+            Total: <span className="font-bold text-foreground">{activeCount}</span> convites gerados • <span className="text-success font-semibold">Emissão Ilimitada</span>
           </p>
         </div>
 
@@ -208,22 +208,30 @@ export function AdminConvitesClient({
             {showInviteForm ? "Fechar Formulário" : "✉️ Convidar Cliente por Link / E-mail"}
           </button>
 
-          {activeCount < programCapacity && (
-            <button
-              onClick={() => handleGenerateBatch(programCapacity - activeCount)}
-              disabled={loading}
-              className="rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
-            >
-              Completar 30 ({programCapacity - activeCount} vagas)
-            </button>
-          )}
+          <button
+            onClick={() => handleGenerateBatch(10)}
+            disabled={loading}
+            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+            title="Gerar lote de 10 convites livres"
+          >
+            +10 Livres
+          </button>
 
           <button
-            onClick={handleClearUnused}
+            onClick={() => handleGenerateBatch(25)}
+            disabled={loading}
+            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+            title="Gerar lote de 25 convites livres"
+          >
+            +25 Livres
+          </button>
+
+          <button
+            onClick={() => handleClearUnused}
             disabled={loading}
             className="rounded-xl border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10 transition disabled:opacity-50"
           >
-            Limpar Convites Livres
+            Limpar Livres
           </button>
         </div>
       </div>
