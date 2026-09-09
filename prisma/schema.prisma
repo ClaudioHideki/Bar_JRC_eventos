@@ -79,9 +79,14 @@ model User {
   role          UserRole   @default(PARTICIPANT)
   status        UserStatus @default(PENDING)
   emailVerified Boolean    @default(false)
-  image         String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  image            String?
+  realEstateAgency String?
+  birthDate        DateTime?
+  lgpdConsent      Boolean    @default(false)
+  lgpdConsentAt    DateTime?
+  lgpdConsentVersion String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   sessions        Session[]
   accounts        Account[]
@@ -116,6 +121,8 @@ model Account {
   userId       String
   accountId    String
   providerId   String
+  issuer       String?
+  scope        String?
   accessToken  String?
   refreshToken String?
   idToken      String?
@@ -145,13 +152,16 @@ model Verification {
 // -----------------------------------------------------------------------------
 
 model Program {
-  id        String        @id @default(uuid())
-  name      String
-  slug      String        @unique
-  capacity  Int           @default(30)
-  status    ProgramStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  name          String
+  slug          String        @unique
+  capacity      Int           @default(30)
+  status        ProgramStatus @default(ACTIVE)
+  themeImageUrl String?
+  themeTitle    String?
+  themeSubtitle String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   invitations   Invitation[]
   passports     Passport[]

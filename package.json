@@ -21,9 +21,13 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "seed": "tsx prisma/seed.ts",
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "backup": "tsx scripts/backup.ts",
-    "restore": "tsx scripts/restore.ts"
+    "db:backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
+    "db:restore": "tsx scripts/restore.ts"
   },
   "overrides": {
     "vite": "^6.2.0"

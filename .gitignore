@@ -47,4 +47,6 @@ Thumbs.db
 # Temp
 tmp/
 temp/
+scratch/
 *.tsbuildinfo
+backups/

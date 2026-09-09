@@ -1,0 +1,69 @@
+name: CI - Passaporte de Eventos JRC
+
+on:
+  push:
+    branches: [main, feat/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Build, Quality & Test Pipeline
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jrc_test_user
+          POSTGRES_PASSWORD: jrc_test_password
+          POSTGRES_DB: jrc_passaporte_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "npm"
+
+      - name: Instalar Dependências Fixadas
+        run: npm ci
+
+      - name: Lint de Código
+        run: npm run lint
+
+      - name: Verificação Estrita de Tipagem TypeScript
+        run: npm run typecheck
+
+      - name: Deploy de Migrations no PostgreSQL de Teste
+        env:
+          DATABASE_URL: postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public
+        run: npx prisma migrate deploy
+
+      - name: Executar Testes Unitários
+        run: npm run test:unit
+
+      - name: Executar Testes de Integração (PostgreSQL Real)
+        env:
+          DATABASE_URL: postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public
+          INVITATION_TOKEN_SECRET: test_ci_invitation_secret_key_32_chars_min
+          QR_TOKEN_SECRET: test_ci_qr_token_secret_key_32_chars_minimum
+          RATE_LIMIT_SECRET: test_ci_rate_limit_secret_key_32_chars_min
+          BETTER_AUTH_SECRET: test_ci_better_auth_secret_key_32_chars_min
+        run: npm run test:integration
+
+      - name: Compilar Build de Produção
+        env:
+          DATABASE_URL: postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npm run build

@@ -43,4 +43,4 @@ EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3   CMD curl -f http://localhost:3000/api/health/live || exit 1
 
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

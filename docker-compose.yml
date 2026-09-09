@@ -21,7 +21,7 @@ services:
       - APP_TIMEZONE=${APP_TIMEZONE:-America/Sao_Paulo}
       - NODE_ENV=production
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${APP_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,9 +43,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "127.0.0.1:5434:5432"
     networks:
       - jrc-internal-network
-    # NOTA DE SEGURANÇA: PostgreSQL NUNCA exposto publicamente na internet.
+    # PostgreSQL mapeado na porta 5434 localmente para evitar conflito com outros containers na 5432.
 
 volumes:
   jrc_pg_data:
