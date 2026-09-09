@@ -1,6 +1,7 @@
 import { UserRole, UserStatus, ProgramStatus, EventStatus, InvitationStatus } from "@prisma/client";
 import { prisma } from "../src/lib/db/prisma";
 import { hashInvitationToken } from "../src/lib/security/crypto";
+import { hashPassword } from "better-auth/crypto";
 
 async function main() {
   console.log("Iniciando seed de homologação com dados para teste...");
@@ -18,13 +19,15 @@ async function main() {
   });
 
   // 2. Administradores Fictícios para Teste
+  const adminPasswordHash = await hashPassword("admin123");
   const admins = [
+    { email: "admin@jrc.com", name: "Administrador JRC" },
     { email: "admin@jrc.com.br", name: "Administrador JRC" },
     { email: "admin.homolog@exemplo-jrc.local", name: "Administrador Homologação" },
   ];
 
   for (const adm of admins) {
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: adm.email },
       create: {
         email: adm.email,
@@ -38,16 +41,38 @@ async function main() {
         status: UserStatus.ACTIVE,
       },
     });
+
+    await prisma.account.upsert({
+      where: {
+        providerId_accountId: {
+          providerId: "credential",
+          accountId: user.id,
+        },
+      },
+      create: {
+        userId: user.id,
+        accountId: user.id,
+        providerId: "credential",
+        issuer: "local:credential",
+        password: adminPasswordHash,
+      },
+      update: {
+        issuer: "local:credential",
+        password: adminPasswordHash,
+      },
+    });
   }
 
   // 3. Atendentes Fictícios para Teste
+  const attendantPasswordHash = await hashPassword("atendente123");
   const attendants = [
+    { email: "atendente@jrc.com", name: "Atendente Recepção JRC" },
     { email: "atendente@jrc.com.br", name: "Atendente Recepção JRC" },
     { email: "atendente.homolog@exemplo-jrc.local", name: "Atendente Homologação" },
   ];
 
   for (const att of attendants) {
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: att.email },
       create: {
         email: att.email,
@@ -59,6 +84,26 @@ async function main() {
       update: {
         role: UserRole.ATTENDANT,
         status: UserStatus.ACTIVE,
+      },
+    });
+
+    await prisma.account.upsert({
+      where: {
+        providerId_accountId: {
+          providerId: "credential",
+          accountId: user.id,
+        },
+      },
+      create: {
+        userId: user.id,
+        accountId: user.id,
+        providerId: "credential",
+        issuer: "local:credential",
+        password: attendantPasswordHash,
+      },
+      update: {
+        issuer: "local:credential",
+        password: attendantPasswordHash,
       },
     });
   }

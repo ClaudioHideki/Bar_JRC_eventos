@@ -227,7 +227,7 @@ export function AdminConvitesClient({
           </button>
 
           <button
-            onClick={() => handleClearUnused}
+            onClick={handleClearUnused}
             disabled={loading}
             className="rounded-xl border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10 transition disabled:opacity-50"
           >

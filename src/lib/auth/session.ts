@@ -38,15 +38,16 @@ export async function getServerSession(
   // Fallback robusto: se o getSession não identificou mas há cookie de sessão ativo no banco
   if (!userId) {
     const cookieHeader = reqHeaders.get("cookie") || "";
-    const match = cookieHeader.match(/better-auth\.session_token=([^;]+)/);
+    const match = cookieHeader.match(/(?:__Secure-)?better-auth\.session_token=([^;]+)/);
     if (match) {
-      let rawToken = decodeURIComponent(match[1]);
-      if (rawToken.includes(".")) {
-        rawToken = rawToken.split(".")[0];
-      }
+      let rawToken = decodeURIComponent(match[1]).trim();
+      const prefixToken = rawToken.includes(".") ? rawToken.split(".")[0] : rawToken;
       const dbSession = await prisma.session.findFirst({
         where: {
-          token: rawToken,
+          OR: [
+            { token: rawToken },
+            { token: prefixToken },
+          ],
           expiresAt: { gt: new Date() },
         },
       });

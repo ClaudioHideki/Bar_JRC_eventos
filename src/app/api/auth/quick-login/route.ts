@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { generateSecureToken } from "@/lib/security/crypto";
-import { UserRole } from "@prisma/client";
+import { auth } from "@/lib/auth/auth";
 
 export async function POST(req: NextRequest) {
   // SEGURANÇA: Endpoint disponível apenas em ambiente de desenvolvimento
@@ -16,55 +14,40 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { role } = body;
 
-    let targetEmail = "admin@jrc.com.br";
-    let redirectPath = "/admin";
+    const isAttendant = role === "ATTENDANT";
+    const targetEmail = isAttendant ? "atendente@jrc.com" : "admin@jrc.com";
+    const targetPassword = isAttendant ? "atendente123" : "admin123";
+    const redirectPath = isAttendant ? "/atendimento" : "/admin";
 
-    if (role === "ATTENDANT") {
-      targetEmail = "atendente@jrc.com.br";
-      redirectPath = "/atendimento";
-    }
-
-    const user = await prisma.user.findFirst({
-      where: { email: targetEmail },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: `Usuário ${targetEmail} não encontrado.` }, { status: 404 });
-    }
-
-    // Cria nova sessão válida por 7 dias
-    const token = generateSecureToken(32);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt,
-        ipAddress: req.headers.get("x-forwarded-for") || "127.0.0.1",
-        userAgent: req.headers.get("user-agent") || undefined,
+    const signInRes = await auth.api.signInEmail({
+      body: {
+        email: targetEmail,
+        password: targetPassword,
       },
+      headers: req.headers,
+      asResponse: true,
     });
+
+    if (!signInRes.ok) {
+      const errData = await signInRes.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: errData.message || "Falha ao autenticar usuário." },
+        { status: 401 }
+      );
+    }
+
+    const data = await signInRes.json().catch(() => ({}));
+    const setCookie = signInRes.headers.get("set-cookie");
 
     const response = NextResponse.json({
       success: true,
       redirectPath,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: data.user,
     });
 
-    // Define o cookie de sessão do Better Auth
-    response.cookies.set("better-auth.session_token", token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      path: "/",
-      expires: expiresAt,
-    });
+    if (setCookie) {
+      response.headers.set("set-cookie", setCookie);
+    }
 
     return response;
   } catch (err: unknown) {

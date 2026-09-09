@@ -20,16 +20,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  const redirectAfterLogin = async () => {
-    const session = await authClient.getSession();
-    const role = (session?.data?.user as { role?: string })?.role;
+  const redirectAfterLogin = async (userRole?: string) => {
+    let role = userRole;
+    if (!role) {
+      const session = await authClient.getSession();
+      role = (session?.data?.user as { role?: string })?.role;
+    }
 
     if (role === "ADMIN") {
-      router.push("/admin");
+      window.location.href = "/admin";
     } else if (role === "ATTENDANT") {
-      router.push("/atendimento");
+      window.location.href = "/atendimento";
     } else {
-      router.push("/passaporte");
+      window.location.href = "/passaporte";
     }
   };
 
@@ -58,7 +61,7 @@ export default function LoginPage() {
     }
   };
 
-  // Login por Senha / Data de Nascimento (Participantes)
+  // Login por Senha / Data de Nascimento (Participantes e Administradores)
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -72,13 +75,14 @@ export default function LoginPage() {
 
       if (res.error) {
         setError(res.error.message || "E-mail ou senha inválidos.");
+        setLoading(false);
         return;
       }
 
-      await redirectAfterLogin();
+      const role = (res.data?.user as { role?: string })?.role;
+      await redirectAfterLogin(role);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Falha ao realizar login.");
-    } finally {
       setLoading(false);
     }
   };
@@ -175,21 +179,23 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => handleRoleQuickLogin("ADMIN")}
                   disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-2xl border border-primary/40 bg-primary/10 p-3 hover:bg-primary/20 transition active:scale-95 text-center"
+                  className="flex flex-col items-center justify-center rounded-2xl border border-primary/40 bg-primary/10 p-3 hover:bg-primary/20 transition active:scale-95 text-center cursor-pointer"
                 >
                   <span className="text-lg">🛡️</span>
                   <span className="text-xs font-bold text-foreground mt-1">Administrador</span>
-                  <span className="text-[10px] text-muted">Gestão & Eventos</span>
+                  <span className="text-[10px] text-premium font-mono">admin@jrc.com</span>
+                  <span className="text-[9px] text-muted">senha: admin123</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRoleQuickLogin("ATTENDANT")}
                   disabled={loading}
-                  className="flex flex-col items-center justify-center rounded-2xl border border-secondary/40 bg-secondary/10 p-3 hover:bg-secondary/20 transition active:scale-95 text-center"
+                  className="flex flex-col items-center justify-center rounded-2xl border border-secondary/40 bg-secondary/10 p-3 hover:bg-secondary/20 transition active:scale-95 text-center cursor-pointer"
                 >
                   <span className="text-lg">📱</span>
                   <span className="text-xs font-bold text-foreground mt-1">Atendente</span>
-                  <span className="text-[10px] text-muted">Leitor / Carimbador</span>
+                  <span className="text-[10px] text-secondary font-mono">atendente@jrc.com</span>
+                  <span className="text-[9px] text-muted">senha: atendente123</span>
                 </button>
               </div>
             </div>
@@ -198,7 +204,7 @@ export default function LoginPage() {
         <div className="relative flex py-2 items-center">
           <div className="flex-grow border-t border-muted/20"></div>
           <span className="flex-shrink mx-3 text-[11px] font-semibold text-muted uppercase tracking-wider">
-            Login do Participante
+            Ou acesse com E-mail e Senha
           </span>
           <div className="flex-grow border-t border-muted/20"></div>
         </div>
