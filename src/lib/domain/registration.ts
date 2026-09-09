@@ -276,5 +276,5 @@ export async function confirmInvitationOtpAndCreatePassport({
       user,
       passport,
     };
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }

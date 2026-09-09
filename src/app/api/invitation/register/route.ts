@@ -96,24 +96,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Transação com bloqueio pessimista (SELECT ... FOR UPDATE)
+    // 4. Verificação rápida prévia do convite (sem travar pool)
     const tokenHash = hashInvitationToken(token.trim());
 
-    const txResult = await prisma.$transaction(async (tx) => {
-      // Lock do convite
-      const lockedInv = await tx.$queryRaw<Array<{ id: string; status: string; programId: string; claimedEmail: string | null }>>`
-        SELECT "id", "status", "programId", "claimedEmail" FROM "Invitation" WHERE "tokenHash" = ${tokenHash} FOR UPDATE
-      `;
+    const checkInv = await prisma.invitation.findFirst({
+      where: { tokenHash },
+      select: { id: true, status: true, programId: true, claimedEmail: true },
+    });
 
-      if (!lockedInv || lockedInv.length === 0) {
-        throw new Error("Convite inválido ou inexistente.");
-      }
+    if (!checkInv) {
+      return NextResponse.json(
+        { error: "Este link de convite é inválido ou já foi excluído no painel administrativo. Por favor, solicite um novo convite ao administrador." },
+        { status: 400 }
+      );
+    }
 
-      const inv = lockedInv[0];
+    if (checkInv.status !== InvitationStatus.AVAILABLE && checkInv.status !== InvitationStatus.SENT) {
+      return NextResponse.json(
+        { error: "Este convite já foi utilizado para ativar outro passaporte ou foi cancelado." },
+        { status: 400 }
+      );
+    }
 
-      if (inv.status !== InvitationStatus.AVAILABLE && inv.status !== InvitationStatus.SENT) {
-        throw new Error("Este convite já foi utilizado ou não está mais ativo.");
-      }
+    // Transação com bloqueio pessimista (SELECT ... FOR UPDATE) - AGENTS.md 2.1
+    const txResult = await prisma.$transaction(
+      async (tx) => {
+        // Lock do convite
+        const lockedInv = await tx.$queryRaw<Array<{ id: string; status: string; programId: string; claimedEmail: string | null }>>`
+          SELECT "id", "status", "programId", "claimedEmail" FROM "Invitation" WHERE "tokenHash" = ${tokenHash} FOR UPDATE
+        `;
+
+        if (!lockedInv || lockedInv.length === 0) {
+          throw new Error("Convite inválido ou inexistente.");
+        }
+
+        const inv = lockedInv[0];
+
+        if (inv.status !== InvitationStatus.AVAILABLE && inv.status !== InvitationStatus.SENT) {
+          throw new Error("Este convite já foi utilizado ou não está mais ativo.");
+        }
 
       // Se o convite foi emitido nominalmente para um e-mail específico, confere
       if (inv.claimedEmail && inv.claimedEmail.toLowerCase() !== cleanEmail) {
@@ -168,7 +189,9 @@ export async function POST(req: NextRequest) {
         programId: inv.programId,
         pendingRegId: pendingReg.id,
       };
-    });
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
 
     // 5. Cria o usuário via Better Auth (dispara os databaseHooks)
     const signUpRes = await auth.api.signUpEmail({
@@ -253,7 +276,10 @@ export async function POST(req: NextRequest) {
 
     return signUpRes;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erro ao processar ativação do convite.";
+    const rawMessage = err instanceof Error ? err.message : "Erro ao processar ativação do convite.";
+    const message = rawMessage.includes("Unable to start a transaction")
+      ? "O banco de dados estava ocupado no momento. Por favor, tente clicar novamente para ativar."
+      : rawMessage;
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

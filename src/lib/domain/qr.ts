@@ -58,10 +58,9 @@ export async function generateQrChallengeForUser({
       tx,
     });
 
-    // Retorna o token original para o cliente renderizar o QR Code, sem dados pessoais
     return {
       token: rawToken,
       expiresAt,
     };
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }

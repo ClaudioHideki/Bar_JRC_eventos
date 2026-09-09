@@ -84,7 +84,9 @@ export async function POST(req: NextRequest) {
             sentAt: new Date(),
           },
         });
-      });
+      },
+      { maxWait: 15000, timeout: 30000 }
+      );
 
       const inviteLink = `${baseUrl}/convite/${rawToken}`;
 

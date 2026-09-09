@@ -129,7 +129,7 @@ export async function confirmStamp({
       }
       throw err;
     }
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 export async function cancelStamp({
