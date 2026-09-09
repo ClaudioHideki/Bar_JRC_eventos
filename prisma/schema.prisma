@@ -36,8 +36,8 @@ enum InvitationStatus {
 }
 
 enum RegistrationStatus {
-  PENDING_OTP
-  OTP_VERIFIED
+  PENDING
+  VERIFIED
   COMPLETED
   EXPIRED
   CANCELLED
@@ -200,7 +200,7 @@ model PendingRegistration {
   invitationId    String
   normalizedEmail String
   name            String
-  status          RegistrationStatus @default(PENDING_OTP)
+  status          RegistrationStatus @default(PENDING)
   expiresAt       DateTime
   completedAt     DateTime?
   createdAt       DateTime           @default(now())

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export function ConviteClient({
@@ -15,11 +14,10 @@ export function ConviteClient({
   initialEmail?: string;
   tokenStatus?: "VALID" | "USED" | "INVALID" | "EXPIRED";
 }) {
-  const router = useRouter();
-
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [realEstateAgency, setRealEstateAgency] = useState("");
   const [lgpdAccepted, setLgpdAccepted] = useState(false);
   const [showLgpdModal, setShowLgpdModal] = useState(false);
@@ -27,6 +25,7 @@ export function ConviteClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
   const [registeredUser, setRegisteredUser] = useState<{
     name: string;
     email: string;
@@ -35,37 +34,59 @@ export function ConviteClient({
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setError(null);
     setSuccess(null);
 
     if (!lgpdAccepted) {
-      setError("É obrigatório concordar com o Termo de Consentimento LGPD e Regulamento.");
+      setError(
+        "É obrigatório concordar com o Termo de Consentimento LGPD e Regulamento."
+      );
+      return;
+    }
+
+    if (password.length < 4) {
+      setError("A senha deve ter pelo menos 4 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("As senhas informadas não coincidem.");
       return;
     }
 
     setLoading(true);
 
     try {
-      console.log("[Convite] Enviando ativação para token:", token.slice(0, 8) + "...");
+      console.log(
+        "[Convite] Enviando ativação para token:",
+        token.slice(0, 8) + "..."
+      );
+
       const res = await fetch("/api/invitation/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
         body: JSON.stringify({
           token: token.trim(),
           name: name.trim(),
           email: email.trim(),
-          password: password.trim(),
+          password,
           realEstateAgency: realEstateAgency.trim(),
           lgpdConsent: true,
         }),
       });
 
       const data = await res.json();
+
       console.log("[Convite] Resposta recebida:", res.status, data);
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || "Erro ao ativar passaporte.");
+        throw new Error(
+          data.error || data.message || "Erro ao ativar passaporte."
+        );
       }
 
       setRegisteredUser({
@@ -74,19 +95,26 @@ export function ConviteClient({
         passportNumber: data.user?.passportNumber,
       });
 
-      setSuccess("Passaporte digital ativado com sucesso! Redirecionando...");
+      setSuccess(
+        "Passaporte digital ativado com sucesso! Redirecionando..."
+      );
+
       setTimeout(() => {
         window.location.href = "/passaporte";
       }, 2000);
     } catch (err: unknown) {
       console.error("[Convite] Erro na ativação:", err);
-      setError(err instanceof Error ? err.message : "Erro ao processar ativação do convite.");
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erro ao processar ativação do convite."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Se o token já foi utilizado
   if (tokenStatus === "USED") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
@@ -94,10 +122,16 @@ export function ConviteClient({
           <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-secondary/20 text-2xl font-black text-secondary border border-secondary/30">
             ✓
           </div>
-          <h1 className="text-xl font-black text-foreground">Convite Já Utilizado</h1>
+
+          <h1 className="text-xl font-black text-foreground">
+            Convite Já Utilizado
+          </h1>
+
           <p className="text-xs text-muted leading-relaxed">
-            Este link de convite já foi utilizado para ativar um passaporte digital do Bar JRC.
+            Este link de convite já foi utilizado para ativar um passaporte
+            digital do Bar JRC.
           </p>
+
           <div className="pt-2">
             <Link
               href="/login"
@@ -111,18 +145,24 @@ export function ConviteClient({
     );
   }
 
-  // Se o token é inválido ou inexistente
-  if (tokenStatus === "INVALID") {
+  if (tokenStatus === "INVALID" || tokenStatus === "EXPIRED") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
         <div className="w-full max-w-md rounded-3xl border border-danger/30 bg-surface p-8 shadow-2xl text-center space-y-4">
           <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-danger/20 text-2xl font-black text-danger border border-danger/30">
             ✕
           </div>
-          <h1 className="text-xl font-black text-foreground">Convite Não Encontrado</h1>
+
+          <h1 className="text-xl font-black text-foreground">
+            Convite Não Encontrado
+          </h1>
+
           <p className="text-xs text-muted leading-relaxed">
-            O link informado é inválido ou não existe. Verifique se o link foi copiado integralmente ou solicite um novo convite com a equipe JRC.
+            O link informado é inválido, expirou ou não existe. Verifique se o
+            link foi copiado integralmente ou solicite um novo convite com a
+            equipe JRC.
           </p>
+
           <div className="pt-2">
             <Link
               href="/login"
@@ -136,7 +176,6 @@ export function ConviteClient({
     );
   }
 
-  // Se o cadastro acabou de ser realizado com sucesso
   if (registeredUser) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
@@ -144,17 +183,28 @@ export function ConviteClient({
           <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-secondary/20 text-3xl font-black text-secondary border border-secondary/30">
             ✓
           </div>
-          <h1 className="text-2xl font-black text-foreground">Passaporte Ativado!</h1>
+
+          <h1 className="text-2xl font-black text-foreground">
+            Passaporte Ativado!
+          </h1>
+
           <p className="text-xs text-muted leading-relaxed">
-            Parabéns, <strong className="text-foreground">{registeredUser.name}</strong>! Seu passaporte digital do Bar JRC foi ativado com sucesso.
+            Parabéns,{" "}
+            <strong className="text-foreground">
+              {registeredUser.name}
+            </strong>
+            ! Seu passaporte digital do Bar JRC foi ativado com sucesso.
           </p>
+
           {registeredUser.passportNumber && (
             <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-3 font-mono text-base font-bold text-secondary">
               {registeredUser.passportNumber}
             </div>
           )}
+
           <div className="pt-2">
             <button
+              type="button"
               onClick={() => {
                 window.location.href = "/passaporte";
               }}
@@ -163,6 +213,7 @@ export function ConviteClient({
               Acessar Meu Passaporte Digital
             </button>
           </div>
+
           <p className="text-[11px] text-muted/70">
             Redirecionando automaticamente em instantes...
           </p>
@@ -178,14 +229,18 @@ export function ConviteClient({
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20 text-2xl font-black tracking-wider text-premium border border-primary/30">
             JRC
           </div>
+
           <span className="mt-3 inline-block rounded-full bg-premium/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-premium border border-premium/30">
             Convite Oficial Exclusivo
           </span>
+
           <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground">
             Ativação de Passaporte
           </h1>
+
           <p className="mt-1 text-xs text-muted leading-relaxed">
-            Programa de Fidelidade Bar JRC 40 Anos. Complete os 12 carimbos mensais e escolha o tema do encerramento de Dezembro.
+            Programa de Fidelidade Bar JRC 40 Anos. Complete os 12 carimbos
+            mensais e escolha o tema do encerramento de Dezembro.
           </p>
         </div>
 
@@ -209,9 +264,13 @@ export function ConviteClient({
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+            <label
+              htmlFor="name"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
+            >
               Nome Completo *
             </label>
+
             <input
               id="name"
               type="text"
@@ -224,9 +283,13 @@ export function ConviteClient({
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+            <label
+              htmlFor="email"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
+            >
               Seu E-mail *
             </label>
+
             <input
               id="email"
               type="email"
@@ -239,32 +302,60 @@ export function ConviteClient({
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-muted">
-                Senha de Acesso *
-              </label>
-              <span className="text-[10px] text-premium font-medium">
-                💡 Sugestão: Data de Nascimento
-              </span>
-            </div>
+            <label
+              htmlFor="password"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
+            >
+              Senha de Acesso *
+            </label>
+
             <input
               id="password"
-              type="text"
+              type="password"
               required
+              minLength={4}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Ex: 15/08/1990 ou senha de sua escolha"
+              placeholder="Crie uma senha de acesso"
               className="h-11 w-full rounded-xl border border-muted/30 bg-background px-4 text-sm text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+
             <p className="text-[11px] text-muted/70 mt-1">
-              Dica: Usar sua data de nascimento facilita lembrar o acesso nos próximos eventos mensais.
+              Essa será a senha utilizada nos próximos acessos ao seu
+              passaporte.
             </p>
           </div>
 
           <div>
-            <label htmlFor="agency" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+            <label
+              htmlFor="confirmPassword"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
+            >
+              Confirmar Senha *
+            </label>
+
+            <input
+              id="confirmPassword"
+              type="password"
+              required
+              minLength={4}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Digite novamente a senha"
+              className="h-11 w-full rounded-xl border border-muted/30 bg-background px-4 text-sm text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="agency"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
+            >
               Imobiliária Vinculada *
             </label>
+
             <input
               id="agency"
               type="text"
@@ -276,7 +367,6 @@ export function ConviteClient({
             />
           </div>
 
-          {/* Checkbox LGPD */}
           <div className="pt-2">
             <div className="flex items-start gap-3">
               <input
@@ -287,10 +377,15 @@ export function ConviteClient({
                 onChange={(e) => setLgpdAccepted(e.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-muted/40 bg-background text-primary focus:ring-primary focus:ring-offset-background cursor-pointer"
               />
+
               <div className="text-xs text-muted leading-snug">
-                <label htmlFor="lgpd-consent-input" className="cursor-pointer select-none">
+                <label
+                  htmlFor="lgpd-consent-input"
+                  className="cursor-pointer select-none"
+                >
                   Li e concordo com os{" "}
                 </label>
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -302,7 +397,11 @@ export function ConviteClient({
                 >
                   Termos de Uso e Proteção de Dados (LGPD)
                 </button>{" "}
-                <label htmlFor="lgpd-consent-input" className="cursor-pointer select-none">
+
+                <label
+                  htmlFor="lgpd-consent-input"
+                  className="cursor-pointer select-none"
+                >
                   e com o Regulamento da Campanha Passaporte Bar JRC 40 Anos.
                 </label>
               </div>
@@ -314,13 +413,18 @@ export function ConviteClient({
             disabled={loading || !lgpdAccepted}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary to-secondary font-bold text-white shadow-lg shadow-primary/25 transition hover:opacity-95 disabled:opacity-50 active:scale-[0.98] mt-2 cursor-pointer"
           >
-            {loading ? "Ativando Passaporte..." : "Ativar Meu Passaporte Digital"}
+            {loading
+              ? "Ativando Passaporte..."
+              : "Ativar Meu Passaporte Digital"}
           </button>
 
           <div className="text-center pt-2">
             <p className="text-xs text-muted">
               Já possui conta cadastrada?{" "}
-              <Link href="/login" className="font-bold text-premium hover:underline">
+              <Link
+                href="/login"
+                className="font-bold text-premium hover:underline"
+              >
                 Acessar Passaporte
               </Link>
             </p>
@@ -328,7 +432,6 @@ export function ConviteClient({
         </form>
       </div>
 
-      {/* Modal Termo de Consentimento LGPD */}
       {showLgpdModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-primary/30 bg-surface p-6 shadow-2xl text-foreground">
@@ -336,6 +439,7 @@ export function ConviteClient({
               <h2 className="text-lg font-bold text-premium">
                 Termo de Consentimento e Privacidade (LGPD)
               </h2>
+
               <button
                 type="button"
                 onClick={() => setShowLgpdModal(false)}
@@ -347,22 +451,52 @@ export function ConviteClient({
 
             <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted">
               <p>
-                <strong>1. Finalidade do Tratamento:</strong> Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você autoriza a JRC Construtora a coletar e tratar os dados informados (Nome, E-mail, Senha/Data de Nascimento e Imobiliária Vinculada) com as seguintes finalidades exclusivas:
+                <strong>1. Finalidade do Tratamento:</strong> Em conformidade
+                com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você
+                autoriza a JRC Construtora a coletar e tratar os dados
+                informados (Nome, E-mail, Senha de acesso e Imobiliária
+                Vinculada) com as seguintes finalidades exclusivas:
               </p>
+
               <ul className="list-disc pl-5 space-y-1">
-                <li>Identificação e emissão do seu Passaporte Digital de Eventos JRC;</li>
-                <li>Validação e registro de presenças nos encontros mensais do Bar JRC;</li>
-                <li>Contagem oficial de carimbos para apuração dos participantes aptos a escolher o tema do encerramento anual;</li>
-                <li>Comunicação sobre atualizações de eventos e novidades institucionais da JRC.</li>
+                <li>
+                  Identificação e emissão do seu Passaporte Digital de Eventos
+                  JRC;
+                </li>
+                <li>
+                  Validação e registro de presenças nos encontros mensais do
+                  Bar JRC;
+                </li>
+                <li>
+                  Contagem oficial de carimbos para apuração dos participantes
+                  aptos a escolher o tema do encerramento anual;
+                </li>
+                <li>
+                  Comunicação sobre atualizações de eventos e novidades
+                  institucionais da JRC.
+                </li>
               </ul>
+
               <p>
-                <strong>2. Segurança e Não Compartilhamento:</strong> Seus dados pessoais não serão comercializados nem cedidos a terceiros alheios à operação do evento. Todas as informações trafegam sob conexões criptografadas e são armazenadas em infraestrutura protegida.
+                <strong>2. Segurança e Não Compartilhamento:</strong> Seus dados
+                pessoais não serão comercializados nem cedidos a terceiros
+                alheios à operação do evento. Todas as informações trafegam
+                sob conexões criptografadas e são armazenadas em infraestrutura
+                protegida.
               </p>
+
               <p>
-                <strong>3. Direitos do Titular:</strong> Você poderá, a qualquer momento, solicitar a confirmação, retificação ou revogação do consentimento junto aos canais oficiais de marketing da JRC Construtora.
+                <strong>3. Direitos do Titular:</strong> Você poderá, a qualquer
+                momento, solicitar a confirmação, retificação ou revogação do
+                consentimento junto aos canais oficiais de marketing da JRC
+                Construtora.
               </p>
+
               <p>
-                <strong>4. Regulamento da Campanha:</strong> A participação na campanha é voluntária. Os 12 carimbos são atribuídos presencialmente pela recepção do Bar JRC. Carimbos são pessoais e intransferíveis.
+                <strong>4. Regulamento da Campanha:</strong> A participação na
+                campanha é voluntária. Os 12 carimbos são atribuídos
+                presencialmente pela recepção do Bar JRC. Carimbos são pessoais
+                e intransferíveis.
               </p>
             </div>
 
