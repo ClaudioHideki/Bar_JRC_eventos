@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db/prisma";
 import { getOrCreateDefaultProgram } from "@/lib/domain/invitations";
 import { InvitationStatus, StampStatus, EventStatus } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function AdminDashboardPage() {
   const program = await getOrCreateDefaultProgram();
 
@@ -129,3 +132,5 @@ export default async function AdminDashboardPage() {
     </div>
   );
 }
+
+
