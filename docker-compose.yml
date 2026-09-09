@@ -20,8 +20,6 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - APP_TIMEZONE=${APP_TIMEZONE:-America/Sao_Paulo}
       - NODE_ENV=production
-    ports:
-      - "${APP_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
