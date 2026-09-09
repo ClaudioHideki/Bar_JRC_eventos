@@ -7,7 +7,9 @@ export default async function AdminParticipantesPage() {
   const program = await getOrCreateDefaultProgram();
 
   const passports = await prisma.passport.findMany({
-    where: { programId: program.id },
+    where: {
+      status: "ACTIVE",
+    },
     include: {
       user: true,
       _count: {

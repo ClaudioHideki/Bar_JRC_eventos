@@ -27,10 +27,16 @@ export function ConviteClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [registeredUser, setRegisteredUser] = useState<{
+    name: string;
+    email: string;
+    passportNumber?: string;
+  } | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!lgpdAccepted) {
       setError("É obrigatório concordar com o Termo de Consentimento LGPD e Regulamento.");
@@ -40,30 +46,40 @@ export function ConviteClient({
     setLoading(true);
 
     try {
+      console.log("[Convite] Enviando ativação para token:", token.slice(0, 8) + "...");
       const res = await fetch("/api/invitation/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          token,
-          name,
-          email,
-          password,
-          realEstateAgency,
+          token: token.trim(),
+          name: name.trim(),
+          email: email.trim(),
+          password: password.trim(),
+          realEstateAgency: realEstateAgency.trim(),
           lgpdConsent: true,
         }),
       });
 
       const data = await res.json();
+      console.log("[Convite] Resposta recebida:", res.status, data);
+
       if (!res.ok) {
         throw new Error(data.error || data.message || "Erro ao ativar passaporte.");
       }
 
+      setRegisteredUser({
+        name: data.user?.name || name,
+        email: data.user?.email || email,
+        passportNumber: data.user?.passportNumber,
+      });
+
       setSuccess("Passaporte digital ativado com sucesso! Redirecionando...");
       setTimeout(() => {
         window.location.href = "/passaporte";
-      }, 1000);
+      }, 2000);
     } catch (err: unknown) {
+      console.error("[Convite] Erro na ativação:", err);
       setError(err instanceof Error ? err.message : "Erro ao processar ativação do convite.");
     } finally {
       setLoading(false);
@@ -115,6 +131,41 @@ export function ConviteClient({
               Ir para Tela de Login
             </Link>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Se o cadastro acabou de ser realizado com sucesso
+  if (registeredUser) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
+        <div className="w-full max-w-md rounded-3xl border border-secondary/40 bg-surface p-8 shadow-2xl shadow-secondary/15 text-center space-y-5">
+          <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-secondary/20 text-3xl font-black text-secondary border border-secondary/30">
+            ✓
+          </div>
+          <h1 className="text-2xl font-black text-foreground">Passaporte Ativado!</h1>
+          <p className="text-xs text-muted leading-relaxed">
+            Parabéns, <strong className="text-foreground">{registeredUser.name}</strong>! Seu passaporte digital do Bar JRC foi ativado com sucesso.
+          </p>
+          {registeredUser.passportNumber && (
+            <div className="rounded-2xl border border-secondary/30 bg-secondary/10 p-3 font-mono text-base font-bold text-secondary">
+              {registeredUser.passportNumber}
+            </div>
+          )}
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                window.location.href = "/passaporte";
+              }}
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary to-secondary font-bold text-white shadow-lg transition hover:opacity-95 text-sm cursor-pointer"
+            >
+              Acessar Meu Passaporte Digital
+            </button>
+          </div>
+          <p className="text-[11px] text-muted/70">
+            Redirecionando automaticamente em instantes...
+          </p>
         </div>
       </main>
     );
@@ -227,26 +278,35 @@ export function ConviteClient({
 
           {/* Checkbox LGPD */}
           <div className="pt-2">
-            <label className="flex items-start gap-3 cursor-pointer text-xs text-muted select-none">
+            <div className="flex items-start gap-3">
               <input
+                id="lgpd-consent-input"
                 type="checkbox"
                 required
                 checked={lgpdAccepted}
                 onChange={(e) => setLgpdAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-muted/40 bg-background text-primary focus:ring-primary focus:ring-offset-background"
+                className="mt-0.5 h-4 w-4 rounded border-muted/40 bg-background text-primary focus:ring-primary focus:ring-offset-background cursor-pointer"
               />
-              <span>
-                Li e concordo com os{" "}
+              <div className="text-xs text-muted leading-snug">
+                <label htmlFor="lgpd-consent-input" className="cursor-pointer select-none">
+                  Li e concordo com os{" "}
+                </label>
                 <button
                   type="button"
-                  onClick={() => setShowLgpdModal(true)}
-                  className="text-premium underline hover:text-foreground font-semibold"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowLgpdModal(true);
+                  }}
+                  className="text-premium underline hover:text-foreground font-semibold inline cursor-pointer"
                 >
                   Termos de Uso e Proteção de Dados (LGPD)
                 </button>{" "}
-                e com o Regulamento da Campanha Passaporte Bar JRC 40 Anos.
-              </span>
-            </label>
+                <label htmlFor="lgpd-consent-input" className="cursor-pointer select-none">
+                  e com o Regulamento da Campanha Passaporte Bar JRC 40 Anos.
+                </label>
+              </div>
+            </div>
           </div>
 
           <button

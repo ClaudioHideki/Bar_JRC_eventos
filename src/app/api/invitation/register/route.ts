@@ -194,6 +194,14 @@ export async function POST(req: NextRequest) {
   );
 
     // 5. Cria o usuário via Better Auth (dispara os databaseHooks)
+    // Limpa cookies prévios do chamador para evitar conflito de sessão (ex: admin logado testando no mesmo navegador)
+    const cleanHeaders = new Headers();
+    req.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== "cookie") {
+        cleanHeaders.set(key, value);
+      }
+    });
+
     const signUpRes = await auth.api.signUpEmail({
       body: {
         name: name.trim(),
@@ -203,7 +211,7 @@ export async function POST(req: NextRequest) {
         birthDate: birthDate ? new Date(birthDate) : undefined,
         lgpdConsent: true,
       },
-      headers: req.headers,
+      headers: cleanHeaders,
       asResponse: true,
     });
 
@@ -274,7 +282,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return signUpRes;
+    const signUpData = await signUpRes.json().catch(() => ({}));
+
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: "Passaporte ativado com sucesso!",
+        user: {
+          id: newUser?.id,
+          name: newUser?.name,
+          email: newUser?.email,
+          passportNumber: newUser?.passports[0]?.passportNumber,
+        },
+        ...signUpData,
+      },
+      { status: 200 }
+    );
+
+    // Repassa os cookies da nova sessão do participante para o navegador
+    const setCookieHeaders = signUpRes.headers.getSetCookie?.() || [];
+    if (setCookieHeaders.length > 0) {
+      for (const cookie of setCookieHeaders) {
+        response.headers.append("set-cookie", cookie);
+      }
+    } else {
+      const setCookie = signUpRes.headers.get("set-cookie");
+      if (setCookie) {
+        response.headers.set("set-cookie", setCookie);
+      }
+    }
+
+    return response;
   } catch (err: unknown) {
     const rawMessage = err instanceof Error ? err.message : "Erro ao processar ativação do convite.";
     const message = rawMessage.includes("Unable to start a transaction")

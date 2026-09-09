@@ -9,6 +9,13 @@ import { UserRole, UserStatus, PassportStatus } from "@prisma/client";
 export const auth = betterAuth({
   secret: getSecret("BETTER_AUTH_SECRET", "default_better_auth_secret_must_be_32_chars_long"),
   baseURL: process.env.BETTER_AUTH_URL || process.env.APP_URL || "http://localhost:3000",
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://172.16.8.20:3000",
+    process.env.APP_URL || "",
+    process.env.BETTER_AUTH_URL || "",
+  ].filter(Boolean),
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
