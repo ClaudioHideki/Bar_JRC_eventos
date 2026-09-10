@@ -17,7 +17,7 @@ export default async function AttendantPage() {
   const activeEvents = await prisma.event.findMany({
     where: { status: EventStatus.ACTIVE },
     orderBy: { orderIndex: "asc" },
-    select: { id: true, name: true, location: true },
+    select: { id: true, name: true, location: true, startDate: true },
   });
 
   return (

@@ -9,6 +9,7 @@ interface EventOption {
   id: string;
   name: string;
   location: string | null;
+  startDate: string | Date;
 }
 
 interface VerificationPreview {
@@ -28,7 +29,12 @@ export function AttendantScannerClient({
   attendantName: string;
 }) {
   const router = useRouter();
-  const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || "");
+  const now = new Date();
+  const currentEvent = events.find((event) => {
+    const eventDate = new Date(event.startDate);
+    return eventDate.getFullYear() === now.getFullYear() && eventDate.getMonth() === now.getMonth();
+  });
+  const [selectedEventId, setSelectedEventId] = useState<string>(currentEvent?.id || events[0]?.id || "");
   const [scannedToken, setScannedToken] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState<string>("");
   const [isScanning, setIsScanning] = useState<boolean>(true);
@@ -384,3 +390,5 @@ export function AttendantScannerClient({
     </div>
   );
 }
+
+
