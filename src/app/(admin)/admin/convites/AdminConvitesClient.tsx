@@ -45,13 +45,11 @@ export function AdminConvitesClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Novo convite
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
 
-  // Edição
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -68,6 +66,31 @@ export function AdminConvitesClient({
   const clearMessages = () => {
     setError(null);
     setSuccess(null);
+  };
+
+  const formatPhone = (phone: string) => {
+    const digits = phone.replace(/\D/g, "");
+
+    const local =
+      digits.startsWith("55") && digits.length >= 12
+        ? digits.slice(2)
+        : digits;
+
+    if (local.length === 11) {
+      return `(${local.slice(0, 2)}) ${local.slice(
+        2,
+        7
+      )}-${local.slice(7)}`;
+    }
+
+    if (local.length === 10) {
+      return `(${local.slice(0, 2)}) ${local.slice(
+        2,
+        6
+      )}-${local.slice(6)}`;
+    }
+
+    return phone;
   };
 
   const handleSendSingleInvite = async (
@@ -363,10 +386,8 @@ export function AdminConvitesClient({
             ? {
                 ...invitation,
                 status: data.status,
-                claimedName:
-                  data.claimedName || null,
-                claimedEmail:
-                  data.claimedEmail || null,
+                claimedName: data.claimedName || null,
+                claimedEmail: data.claimedEmail || null,
                 phone: data.phone || null,
                 inviteLink:
                   data.inviteLink ||
@@ -382,8 +403,7 @@ export function AdminConvitesClient({
             ? {
                 ...invitation,
                 name: data.claimedName || undefined,
-                email:
-                  data.claimedEmail || undefined,
+                email: data.claimedEmail || undefined,
                 phone: data.phone || undefined,
                 inviteLink:
                   data.inviteLink ||
@@ -405,6 +425,81 @@ export function AdminConvitesClient({
         err instanceof Error
           ? err.message
           : "Falha ao editar convite."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegenerateLink = async (
+    invitationId: string
+  ) => {
+    if (
+      !confirm(
+        "Gerar um novo link para este convite? O link antigo deixará de funcionar."
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    clearMessages();
+
+    try {
+      const res = await fetch(
+        "/api/admin/invitations/regenerate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            invitationId,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Erro ao gerar novo link do convite."
+        );
+      }
+
+      setInvitations((current) =>
+        current.map((invitation) =>
+          invitation.id === invitationId
+            ? {
+                ...invitation,
+                status: data.status,
+                claimedName:
+                  data.claimedName ??
+                  invitation.claimedName,
+                claimedEmail:
+                  data.claimedEmail ??
+                  invitation.claimedEmail,
+                phone:
+                  data.phone ??
+                  invitation.phone,
+                inviteLink: data.inviteLink,
+              }
+            : invitation
+        )
+      );
+
+      setSuccess(
+        "Novo link gerado com sucesso. O link anterior foi invalidado."
+      );
+
+      router.refresh();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao gerar novo link."
       );
     } finally {
       setLoading(false);
@@ -656,6 +751,12 @@ ${clickableLink}`;
                     </p>
                   )}
 
+                  {item.phone && (
+                    <p className="text-[11px] text-muted">
+                      {formatPhone(item.phone)}
+                    </p>
+                  )}
+
                   <span className="block truncate font-mono text-[11px] text-muted/80">
                     {item.inviteLink}
                   </span>
@@ -767,8 +868,7 @@ ${clickableLink}`;
                             ? "border-success/30 bg-success/10 text-success"
                             : isRevoked
                               ? "border-danger/30 bg-danger/10 text-danger"
-                              : inv.status ===
-                                  "SENT"
+                              : inv.status === "SENT"
                                 ? "border-secondary/30 bg-secondary/10 text-secondary"
                                 : "border-primary/30 bg-primary/10 text-primary"
                         }`}
@@ -835,12 +935,14 @@ ${clickableLink}`;
                           placeholder="11999998888"
                           className="h-9 min-w-[150px] rounded-lg border border-muted/30 bg-background px-2 text-xs text-foreground focus:border-primary focus:outline-none"
                         />
+                      ) : inv.phone ? (
+                        <span className="font-semibold text-foreground">
+                          {formatPhone(inv.phone)}
+                        </span>
                       ) : (
-                        inv.phone || (
-                          <span className="text-muted/40">
-                            —
-                          </span>
-                        )
+                        <span className="text-muted/50">
+                          Não informado
+                        </span>
                       )}
                     </td>
 
@@ -888,10 +990,7 @@ ${clickableLink}`;
                           {inv.inviteLink}
                         </span>
                       ) : (
-                        <span
-                          className="text-[10px] text-muted/50"
-                          title="Este convite foi criado antes do armazenamento seguro dos links."
-                        >
+                        <span className="text-[10px] text-muted/50">
                           Link antigo indisponível
                         </span>
                       )}
@@ -909,7 +1008,7 @@ ${clickableLink}`;
                                 )
                               }
                               disabled={loading}
-                              className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success transition hover:bg-success/20 disabled:opacity-50"
+                              className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success"
                             >
                               Salvar
                             </button>
@@ -918,7 +1017,7 @@ ${clickableLink}`;
                               type="button"
                               onClick={cancelEdit}
                               disabled={loading}
-                              className="rounded-lg border border-muted/30 px-2.5 py-1 text-[11px] font-semibold text-muted transition hover:bg-muted/10 disabled:opacity-50"
+                              className="rounded-lg border border-muted/30 px-2.5 py-1 text-[11px] font-semibold text-muted"
                             >
                               Cancelar
                             </button>
@@ -933,15 +1032,27 @@ ${clickableLink}`;
                               disabled={
                                 loading || isUsed
                               }
-                              title={
-                                isUsed
-                                  ? "Convite já utilizado"
-                                  : "Editar nome, e-mail e telefone"
-                              }
-                              className="rounded-lg border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-[11px] font-semibold text-secondary transition hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="rounded-lg border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-[11px] font-semibold text-secondary disabled:opacity-40"
                             >
                               Editar
                             </button>
+
+                            {!inv.inviteLink &&
+                              !isUsed &&
+                              !isRevoked && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRegenerateLink(
+                                      inv.id
+                                    )
+                                  }
+                                  disabled={loading}
+                                  className="rounded-lg border border-premium/30 bg-premium/10 px-2.5 py-1 text-[11px] font-semibold text-premium disabled:opacity-50"
+                                >
+                                  Gerar novo link
+                                </button>
+                              )}
 
                             {inv.inviteLink && (
                               <>
@@ -953,7 +1064,7 @@ ${clickableLink}`;
                                       inv.id
                                     )
                                   }
-                                  className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+                                  className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
                                 >
                                   {copiedId ===
                                   inv.id
@@ -962,12 +1073,10 @@ ${clickableLink}`;
                                 </button>
 
                                 <a
-                                  href={
-                                    inv.inviteLink
-                                  }
+                                  href={inv.inviteLink}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="rounded-lg border border-primary/30 px-2.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/10"
+                                  className="rounded-lg border border-primary/30 px-2.5 py-1 text-[11px] font-semibold text-primary"
                                 >
                                   Abrir Convite
                                 </a>
@@ -980,7 +1089,7 @@ ${clickableLink}`;
                                   )}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success transition hover:bg-success/20"
+                                  className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success"
                                 >
                                   WhatsApp
                                 </a>
@@ -996,7 +1105,7 @@ ${clickableLink}`;
                                 )
                               }
                               disabled={loading}
-                              className="rounded-lg border border-danger/30 px-2.5 py-1 text-[11px] font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-50"
+                              className="rounded-lg border border-danger/30 px-2.5 py-1 text-[11px] font-semibold text-danger"
                             >
                               Excluir
                             </button>
