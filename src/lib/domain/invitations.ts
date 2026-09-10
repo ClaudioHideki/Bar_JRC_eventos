@@ -6,7 +6,19 @@ import {
   normalizeEmail,
 } from "../security/crypto";
 import { createAuditLog } from "./audit";
-import { InvitationStatus, ProgramStatus } from "@prisma/client";
+import {
+  InvitationStatus,
+  ProgramStatus,
+} from "@prisma/client";
+
+const INVITATION_EXPIRATION_HOURS = 24;
+
+function getInvitationExpirationDate() {
+  return new Date(
+    Date.now() +
+      INVITATION_EXPIRATION_HOURS * 60 * 60 * 1000
+  );
+}
 
 export async function getOrCreateDefaultProgram() {
   const defaultSlug = "passaporte-jrc-2026";
@@ -35,11 +47,14 @@ export interface GeneratedInvitationResult {
   tokenHash: string;
   inviteLink: string;
   status: InvitationStatus;
+  expiresAt: Date;
 }
 
 /**
  * Gera um lote de convites garantindo no banco que a capacidade
  * do programa não seja excedida.
+ *
+ * Cada link gerado possui validade de 24 horas.
  */
 export async function generateInvitationBatch({
   count,
@@ -68,18 +83,19 @@ export async function generateInvitationBatch({
 
     const capacity = lockedProgram[0].capacity;
 
-    const currentActiveInvites = await tx.invitation.count({
-      where: {
-        programId: program.id,
-        status: {
-          in: [
-            InvitationStatus.AVAILABLE,
-            InvitationStatus.SENT,
-            InvitationStatus.USED,
-          ],
+    const currentActiveInvites =
+      await tx.invitation.count({
+        where: {
+          programId: program.id,
+          status: {
+            in: [
+              InvitationStatus.AVAILABLE,
+              InvitationStatus.SENT,
+              InvitationStatus.USED,
+            ],
+          },
         },
-      },
-    });
+      });
 
     if (currentActiveInvites + count > capacity) {
       throw new Error(
@@ -92,7 +108,11 @@ export async function generateInvitationBatch({
     for (let i = 0; i < count; i++) {
       const rawToken = generateSecureToken(32);
       const tokenHash = hashInvitationToken(rawToken);
-      const tokenEncrypted = encryptInvitationToken(rawToken);
+      const tokenEncrypted =
+        encryptInvitationToken(rawToken);
+
+      const expiresAt =
+        getInvitationExpirationDate();
 
       const inv = await tx.invitation.create({
         data: {
@@ -101,6 +121,7 @@ export async function generateInvitationBatch({
           tokenEncrypted,
           status: InvitationStatus.AVAILABLE,
           createdById: adminUserId ?? null,
+          expiresAt,
         },
       });
 
@@ -110,6 +131,7 @@ export async function generateInvitationBatch({
         tokenHash,
         inviteLink: `${baseUrl}/convite/${rawToken}`,
         status: inv.status,
+        expiresAt,
       });
     }
 
@@ -121,6 +143,8 @@ export async function generateInvitationBatch({
       details: {
         count,
         programId: program.id,
+        expirationHours:
+          INVITATION_EXPIRATION_HOURS,
       },
       tx,
     });
@@ -185,11 +209,12 @@ export async function markInvitationAsSent({
   recipientPhone?: string;
   adminUserId: string;
 }) {
-  const invitation = await prisma.invitation.findUnique({
-    where: {
-      id: invitationId,
-    },
-  });
+  const invitation =
+    await prisma.invitation.findUnique({
+      where: {
+        id: invitationId,
+      },
+    });
 
   if (!invitation) {
     throw new Error("Convite não encontrado.");
@@ -211,13 +236,17 @@ export async function markInvitationAsSent({
       claimedEmail: recipientEmail
         ? normalizeEmail(recipientEmail)
         : null,
-      claimedName: recipientName?.trim() || null,
-      phone: recipientPhone?.trim() || null,
+      claimedName:
+        recipientName?.trim() || null,
+      phone:
+        recipientPhone?.trim() || null,
     },
   });
 }
 
-export async function getInvitationByToken(rawToken: string) {
+export async function getInvitationByToken(
+  rawToken: string
+) {
   const tokenHash = hashInvitationToken(rawToken);
 
   return await prisma.invitation.findUnique({

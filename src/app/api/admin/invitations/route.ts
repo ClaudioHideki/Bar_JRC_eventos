@@ -36,10 +36,16 @@ function recoverInviteLink(
   }
 
   try {
-    const rawToken = decryptInvitationToken(tokenEncrypted);
+    const rawToken =
+      decryptInvitationToken(tokenEncrypted);
+
     return `${baseUrl}/convite/${rawToken}`;
   } catch (error) {
-    console.error("Erro ao recuperar link de convite:", error);
+    console.error(
+      "Erro ao recuperar link de convite:",
+      error
+    );
+
     return null;
   }
 }
@@ -54,63 +60,84 @@ export async function GET(req: NextRequest) {
       session.user.role !== UserRole.ADMIN
     ) {
       return NextResponse.json(
-        { error: "Acesso restrito a administradores." },
-        { status: 403 }
+        {
+          error:
+            "Acesso restrito a administradores.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
     const baseUrl = getBaseUrl(req);
 
-    const invitations = await prisma.invitation.findMany({
-      select: {
-        id: true,
-        status: true,
-        claimedName: true,
-        claimedEmail: true,
-        phone: true,
-        tokenEncrypted: true,
-        usedAt: true,
-        createdAt: true,
-        usedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    const invitations =
+      await prisma.invitation.findMany({
+        select: {
+          id: true,
+          status: true,
+          claimedName: true,
+          claimedEmail: true,
+          phone: true,
+          tokenEncrypted: true,
+          usedAt: true,
+          createdAt: true,
+          usedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
-    const safeInvitations = invitations.map((invitation) => ({
-      id: invitation.id,
-      status: invitation.status,
-      claimedName: invitation.claimedName,
-      claimedEmail: invitation.claimedEmail,
-      phone: invitation.phone,
-      usedByName: invitation.usedBy?.name || null,
-      usedByEmail: invitation.usedBy?.email || null,
-      usedAt: invitation.usedAt
-        ? invitation.usedAt.toISOString()
-        : null,
-      createdAt: invitation.createdAt.toISOString(),
-      inviteLink: recoverInviteLink(
-        invitation.tokenEncrypted,
-        baseUrl
-      ),
-    }));
-
-    return NextResponse.json(safeInvitations, {
-      status: 200,
-    });
-  } catch (error) {
-    console.error("Erro ao listar convites:", error);
+    const safeInvitations = invitations.map(
+      (invitation) => ({
+        id: invitation.id,
+        status: invitation.status,
+        claimedName: invitation.claimedName,
+        claimedEmail: invitation.claimedEmail,
+        phone: invitation.phone,
+        usedByName:
+          invitation.usedBy?.name || null,
+        usedByEmail:
+          invitation.usedBy?.email || null,
+        usedAt: invitation.usedAt
+          ? invitation.usedAt.toISOString()
+          : null,
+        createdAt:
+          invitation.createdAt.toISOString(),
+        inviteLink: recoverInviteLink(
+          invitation.tokenEncrypted,
+          baseUrl
+        ),
+      })
+    );
 
     return NextResponse.json(
-      { error: "Erro ao listar convites." },
-      { status: 500 }
+      safeInvitations,
+      {
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Erro ao listar convites:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error: "Erro ao listar convites.",
+      },
+      {
+        status: 500,
+      }
     );
   }
 }
@@ -125,8 +152,13 @@ export async function POST(req: NextRequest) {
       session.user.role !== UserRole.ADMIN
     ) {
       return NextResponse.json(
-        { error: "Acesso restrito a administradores." },
-        { status: 403 }
+        {
+          error:
+            "Acesso restrito a administradores.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
@@ -149,7 +181,9 @@ export async function POST(req: NextRequest) {
       const recipientEmail =
         typeof body.recipientEmail === "string" &&
         body.recipientEmail.trim()
-          ? normalizeEmail(body.recipientEmail)
+          ? normalizeEmail(
+              body.recipientEmail
+            )
           : null;
 
       const recipientPhone =
@@ -157,83 +191,105 @@ export async function POST(req: NextRequest) {
           ? body.phone.trim()
           : "";
 
-      const program = await getOrCreateDefaultProgram();
+      const program =
+        await getOrCreateDefaultProgram();
 
-      const rawToken = generateSecureToken(32);
-      const tokenHash = hashInvitationToken(rawToken);
+      const rawToken =
+        generateSecureToken(32);
+
+      const tokenHash =
+        hashInvitationToken(rawToken);
+
       const tokenEncrypted =
         encryptInvitationToken(rawToken);
 
-      const invitation = await prisma.$transaction(
-        async (tx) => {
-          // Bloqueio pessimista para evitar estouro de capacidade
-          const lockedProgram = await tx.$queryRaw<
-            Array<{
-              id: string;
-              capacity: number;
-            }>
-          >`
-            SELECT "id", "capacity"
-            FROM "Program"
-            WHERE "id" = ${program.id}
-            FOR UPDATE
-          `;
+      const expiresAt = new Date(
+        Date.now() +
+          24 * 60 * 60 * 1000
+      );
 
-          if (
-            !lockedProgram ||
-            lockedProgram.length === 0
-          ) {
-            throw new Error(
-              "Programa não encontrado."
-            );
-          }
+      const invitation =
+        await prisma.$transaction(
+          async (tx) => {
+            // Bloqueio pessimista para evitar estouro de capacidade
+            const lockedProgram =
+              await tx.$queryRaw<
+                Array<{
+                  id: string;
+                  capacity: number;
+                }>
+              >`
+                SELECT "id", "capacity"
+                FROM "Program"
+                WHERE "id" = ${program.id}
+                FOR UPDATE
+              `;
 
-          const capacity =
-            lockedProgram[0].capacity;
+            if (
+              !lockedProgram ||
+              lockedProgram.length === 0
+            ) {
+              throw new Error(
+                "Programa não encontrado."
+              );
+            }
 
-          const activeCount =
-            await tx.invitation.count({
-              where: {
-                programId: program.id,
-                status: {
-                  in: [
-                    InvitationStatus.AVAILABLE,
-                    InvitationStatus.SENT,
-                    InvitationStatus.USED,
-                  ],
+            const capacity =
+              lockedProgram[0].capacity;
+
+            const activeCount =
+              await tx.invitation.count({
+                where: {
+                  programId:
+                    program.id,
+                  status: {
+                    in: [
+                      InvitationStatus.AVAILABLE,
+                      InvitationStatus.SENT,
+                      InvitationStatus.USED,
+                    ],
+                  },
                 },
+              });
+
+            if (
+              activeCount >= capacity
+            ) {
+              throw new Error(
+                `Limite de capacidade atingido (${capacity} convites). Revogue ou exclua convites existentes para liberar vagas.`
+              );
+            }
+
+            return await tx.invitation.create({
+              data: {
+                programId:
+                  program.id,
+                tokenHash,
+                tokenEncrypted,
+                status:
+                  InvitationStatus.SENT,
+                claimedName:
+                  recipientName ||
+                  null,
+                claimedEmail:
+                  recipientEmail ||
+                  null,
+                phone:
+                  recipientPhone ||
+                  null,
+                createdById:
+                  session.user.id,
+                sentAt:
+                  new Date(),
+                expiresAt,
               },
             });
-
-          if (activeCount >= capacity) {
-            throw new Error(
-              `Limite de capacidade atingido (${capacity} convites). Revogue ou exclua convites existentes para liberar vagas.`
-            );
+          },
+          {
+            maxWait: 15000,
+            timeout: 30000,
           }
-
-          return await tx.invitation.create({
-            data: {
-              programId: program.id,
-              tokenHash,
-              tokenEncrypted,
-              status: InvitationStatus.SENT,
-              claimedName:
-                recipientName || null,
-              claimedEmail:
-                recipientEmail || null,
-              phone:
-                recipientPhone || null,
-              createdById:
-                session.user.id,
-              sentAt: new Date(),
-            },
-          });
-        },
-        {
-          maxWait: 15000,
-          timeout: 30000,
-        }
-      );
+        );
 
       const inviteLink =
         `${baseUrl}/convite/${rawToken}`;
@@ -252,22 +308,32 @@ export async function POST(req: NextRequest) {
         try {
           const transporter =
             nodemailer.createTransport({
-              host: process.env.SMTP_HOST,
+              host:
+                process.env.SMTP_HOST,
               port: parseInt(
-                process.env.SMTP_PORT || "587",
+                process.env
+                  .SMTP_PORT ||
+                  "587",
                 10
               ),
               secure:
-                process.env.SMTP_PORT === "465",
+                process.env
+                  .SMTP_PORT ===
+                "465",
               auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASSWORD,
+                user:
+                  process.env
+                    .SMTP_USER,
+                pass:
+                  process.env
+                    .SMTP_PASSWORD,
               },
             });
 
           await transporter.sendMail({
             from:
-              process.env.SMTP_FROM ||
+              process.env
+                .SMTP_FROM ||
               "Passaporte JRC <no-reply@jrc.com.br>",
             to: recipientEmail,
             subject:
@@ -279,7 +345,10 @@ export async function POST(req: NextRequest) {
                 </h2>
 
                 <p>
-                  Olá ${recipientName || "Parceiro JRC"},
+                  Olá ${
+                    recipientName ||
+                    "Parceiro JRC"
+                  },
                 </p>
 
                 <p>
@@ -323,14 +392,19 @@ export async function POST(req: NextRequest) {
       // Nunca devolvemos tokenHash ou tokenEncrypted ao navegador
       return NextResponse.json(
         {
-          id: invitation.id,
-          status: invitation.status,
+          id:
+            invitation.id,
+          status:
+            invitation.status,
           inviteLink,
           claimedName:
             invitation.claimedName,
           claimedEmail:
             invitation.claimedEmail,
-          phone: invitation.phone,
+          phone:
+            invitation.phone,
+          expiresAt:
+            invitation.expiresAt,
           emailSent,
         },
         {
@@ -366,7 +440,8 @@ export async function POST(req: NextRequest) {
     const batch =
       await generateInvitationBatch({
         count,
-        adminUserId: session.user.id,
+        adminUserId:
+          session.user.id,
         baseUrl,
       });
 
@@ -374,10 +449,14 @@ export async function POST(req: NextRequest) {
     // A interface precisa apenas do link pronto.
     const safeBatch = batch.map(
       (invitation) => ({
-        id: invitation.id,
-        status: invitation.status,
+        id:
+          invitation.id,
+        status:
+          invitation.status,
         inviteLink:
           invitation.inviteLink,
+        expiresAt:
+          invitation.expiresAt,
       })
     );
 
@@ -408,20 +487,28 @@ export async function DELETE(
   req: NextRequest
 ) {
   try {
-    const session = await getServerSession(req);
+    const session =
+      await getServerSession(req);
 
     if (
       !session ||
       !session.user ||
-      session.user.role !== UserRole.ADMIN
+      session.user.role !==
+        UserRole.ADMIN
     ) {
       return NextResponse.json(
-        { error: "Acesso restrito a administradores." },
-        { status: 403 }
+        {
+          error:
+            "Acesso restrito a administradores.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
-    const body = await req.json();
+    const body =
+      await req.json();
 
     // -----------------------------------------------------------------------
     // Limpar convites não utilizados
@@ -442,7 +529,8 @@ export async function DELETE(
       return NextResponse.json(
         {
           success: true,
-          count: deleted.count,
+          count:
+            deleted.count,
           message:
             `${deleted.count} convite(s) não utilizados foram removidos.`,
         },
@@ -476,7 +564,8 @@ export async function DELETE(
       const inv =
         await prisma.invitation.findUnique({
           where: {
-            id: invitationId,
+            id:
+              invitationId,
           },
         });
 
@@ -507,28 +596,34 @@ export async function DELETE(
           if (inv.usedById) {
             await tx.invitation.update({
               where: {
-                id: invitationId,
+                id:
+                  invitationId,
               },
               data: {
-                usedById: null,
+                usedById:
+                  null,
               },
             });
           }
 
           await tx.invitation.delete({
             where: {
-              id: invitationId,
+              id:
+                invitationId,
             },
           });
 
           await createAuditLog({
             actorUserId:
               session.user.id,
-            actorRole: "ADMIN",
+            actorRole:
+              "ADMIN",
             action:
               "INVITATION_DELETED_PERMANENT",
-            entity: "Invitation",
-            entityId: invitationId,
+            entity:
+              "Invitation",
+            entityId:
+              invitationId,
             details: {
               wasUsed:
                 inv.status ===
@@ -565,8 +660,10 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        id: revoked.id,
-        status: revoked.status,
+        id:
+          revoked.id,
+        status:
+          revoked.status,
       },
       {
         status: 200,
@@ -593,20 +690,28 @@ export async function PATCH(
   req: NextRequest
 ) {
   try {
-    const session = await getServerSession(req);
+    const session =
+      await getServerSession(req);
 
     if (
       !session ||
       !session.user ||
-      session.user.role !== UserRole.ADMIN
+      session.user.role !==
+        UserRole.ADMIN
     ) {
       return NextResponse.json(
-        { error: "Acesso restrito a administradores." },
-        { status: 403 }
+        {
+          error:
+            "Acesso restrito a administradores.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
-    const body = await req.json();
+    const body =
+      await req.json();
 
     const {
       invitationId,
@@ -629,9 +734,11 @@ export async function PATCH(
     }
 
     const normalizedPhone =
-      typeof recipientPhone === "string"
+      typeof recipientPhone ===
+      "string"
         ? recipientPhone
-        : typeof phone === "string"
+        : typeof phone ===
+            "string"
           ? phone
           : undefined;
 
@@ -639,11 +746,13 @@ export async function PATCH(
       await markInvitationAsSent({
         invitationId,
         recipientEmail:
-          typeof recipientEmail === "string"
+          typeof recipientEmail ===
+          "string"
             ? recipientEmail
             : undefined,
         recipientName:
-          typeof recipientName === "string"
+          typeof recipientName ===
+          "string"
             ? recipientName
             : undefined,
         recipientPhone:
@@ -652,7 +761,8 @@ export async function PATCH(
           session.user.id,
       });
 
-    const baseUrl = getBaseUrl(req);
+    const baseUrl =
+      getBaseUrl(req);
 
     const inviteLink =
       recoverInviteLink(
@@ -662,13 +772,16 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        id: updated.id,
-        status: updated.status,
+        id:
+          updated.id,
+        status:
+          updated.status,
         claimedName:
           updated.claimedName,
         claimedEmail:
           updated.claimedEmail,
-        phone: updated.phone,
+        phone:
+          updated.phone,
         usedAt:
           updated.usedAt?.toISOString() ||
           null,

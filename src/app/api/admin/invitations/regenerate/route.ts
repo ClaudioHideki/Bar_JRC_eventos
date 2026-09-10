@@ -109,6 +109,10 @@ export async function POST(req: NextRequest) {
     const tokenEncrypted =
       encryptInvitationToken(rawToken);
 
+    const expiresAt = new Date(
+      Date.now() + 24 * 60 * 60 * 1000
+    );
+
     const updated = await prisma.invitation.update({
       where: {
         id: invitation.id,
@@ -121,6 +125,7 @@ export async function POST(req: NextRequest) {
           invitation.status === InvitationStatus.SENT
             ? undefined
             : new Date(),
+        expiresAt,
       },
       select: {
         id: true,
@@ -128,6 +133,7 @@ export async function POST(req: NextRequest) {
         claimedName: true,
         claimedEmail: true,
         phone: true,
+        expiresAt: true,
       },
     });
 
@@ -142,6 +148,7 @@ export async function POST(req: NextRequest) {
       claimedEmail: updated.claimedEmail,
       phone: updated.phone,
       inviteLink,
+      expiresAt: updated.expiresAt,
     });
   } catch (error) {
     console.error(
