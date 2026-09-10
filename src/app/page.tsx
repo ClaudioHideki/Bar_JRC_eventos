@@ -33,7 +33,7 @@ export default function HomePage() {
             Já Possuo Passaporte (Entrar)
           </Link>
           <p className="mt-4 text-[11px] text-muted/70">
-            Dezembro é seu. Se você estiver lá até o fim.
+            Setembro de 2027 é seu. Se você estiver lá até o fim.
           </p>
         </div>
       </div>

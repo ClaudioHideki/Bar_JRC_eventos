@@ -7,6 +7,7 @@ interface ParticipantItem {
   id: string; // userId
   name: string;
   email: string;
+  phone: string | null;
   image: string | null;
   realEstateAgency: string | null;
   passportId: string;
@@ -98,6 +99,7 @@ export function AdminParticipantesClient({
                 <th className="p-4">Participante</th>
                 <th className="p-4">Imobiliária</th>
                 <th className="p-4">E-mail</th>
+                <th className="p-4">Telefone</th>
                 <th className="p-4">Passaporte</th>
                 <th className="p-4">Carimbos (de 12)</th>
                 <th className="p-4">Termo LGPD</th>
@@ -108,7 +110,7 @@ export function AdminParticipantesClient({
             <tbody className="divide-y divide-muted/10">
               {participants.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted">
+                  <td colSpan={9} className="p-8 text-center text-muted">
                     Nenhum participante cadastrado até o momento.
                   </td>
                 </tr>
@@ -137,6 +139,7 @@ export function AdminParticipantesClient({
                       )}
                     </td>
                     <td className="p-4 text-muted">{p.email}</td>
+                    <td className="p-4 text-muted">{p.phone || "—"}</td>
                     <td className="p-4 font-mono font-bold text-secondary">{p.passportNumber}</td>
                     <td className="p-4 font-bold text-success">
                       {p.stampsCount} / 12

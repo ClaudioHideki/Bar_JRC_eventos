@@ -10,7 +10,7 @@ export default async function TemasPage() {
   const initialTheme = {
     themeImageUrl: program?.themeImageUrl || "/brand/passaporte-template.jpg",
     themeTitle: program?.themeTitle || "Passaporte JRC",
-    themeSubtitle: program?.themeSubtitle || "Dezembro é seu. Se você estiver lá até o fim.",
+    themeSubtitle: program?.themeSubtitle || "Setembro de 2027 é seu. Se você estiver lá até o fim.",
   };
 
   const events = program

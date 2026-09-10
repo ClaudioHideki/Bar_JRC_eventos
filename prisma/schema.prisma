@@ -81,6 +81,7 @@ model User {
   emailVerified Boolean    @default(false)
   image            String?
   realEstateAgency String?
+  phone            String?
   birthDate        DateTime?
   lgpdConsent      Boolean    @default(false)
   lgpdConsentAt    DateTime?
@@ -176,6 +177,7 @@ model Invitation {
   status         InvitationStatus @default(AVAILABLE)
   claimedName    String?
   claimedEmail   String?
+  phone          String?
   usedById       String?          @unique
   createdById    String?
   sentAt         DateTime?

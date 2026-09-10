@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     if (body.recipientName || body.recipientEmail) {
       const recipientName = body.recipientName?.trim() || "";
       const recipientEmail = body.recipientEmail ? normalizeEmail(body.recipientEmail) : null;
+      const recipientPhone = typeof body.phone === "string" ? body.phone.trim() : "";
 
       const program = await getOrCreateDefaultProgram();
       const rawToken = generateSecureToken(32);
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
             status: InvitationStatus.SENT,
             claimedName: recipientName || null,
             claimedEmail: recipientEmail || null,
+            phone: recipientPhone || null,
             createdById: session.user.id,
             sentAt: new Date(),
           },
@@ -112,7 +114,7 @@ export async function POST(req: NextRequest) {
               <div style="font-family: sans-serif; background-color: #071725; color: #f7f8fa; padding: 28px; border-radius: 12px; max-width: 550px;">
                 <h2 style="color: #cdaa63; margin-top: 0;">Você foi convidado para o Bar JRC!</h2>
                 <p>Olá ${recipientName || "Parceiro JRC"},</p>
-                <p>Você recebeu um convite oficial para ativar seu <strong>Passaporte Bar JRC</strong>. Participe dos nossos encontros mensais, complete os 12 carimbos e garanta o direito de escolher a temática do evento de Dezembro!</p>
+                <p>Você recebeu um convite oficial para ativar seu <strong>Passaporte Bar JRC</strong>. Participe dos nossos encontros mensais, complete os 12 carimbos e garanta o direito de escolher a temática do evento de Setembro de 2027!</p>
                 <div style="margin: 24px 0;">
                   <a href="${inviteLink}" style="background: #19b8c4; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
                     Ativar Meu Passaporte Agora
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
         token: rawToken,
         claimedName: recipientName,
         claimedEmail: recipientEmail,
+        phone: recipientPhone || null,
         emailSent,
       }, { status: 201 });
     }

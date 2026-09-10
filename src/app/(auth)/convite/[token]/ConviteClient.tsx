@@ -240,7 +240,7 @@ export function ConviteClient({
 
           <p className="mt-1 text-xs text-muted leading-relaxed">
             Programa de Fidelidade Bar JRC 40 Anos. Complete os 12 carimbos
-            mensais e escolha o tema do encerramento de Dezembro.
+            mensais e escolha o tema do encerramento de Setembro de 2027.
           </p>
         </div>
 

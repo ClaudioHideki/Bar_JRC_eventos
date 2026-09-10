@@ -79,11 +79,11 @@ export function PassportClient({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
 
-  // Arte selecionada para o passaporte (padrão ou do evento ativo)
+  // Arte selecionada para o passaporte (padrÃ£o ou do evento ativo)
   const initialTheme = activeEventThemeUrl || themeImageUrl || "/brand/passaporte-template.jpg";
   const [displayedThemeUrl, setDisplayedThemeUrl] = useState<string>(initialTheme);
   const [displayedThemeTitle, setDisplayedThemeTitle] = useState<string>(
-    activeEventThemeUrl && activeEventName ? `Edição: ${activeEventName}` : "Arte Oficial JRC"
+    activeEventThemeUrl && activeEventName ? `EdiÃ§Ã£o: ${activeEventName}` : "Arte Oficial JRC"
   );
 
   const handleLogout = async () => {
@@ -96,12 +96,12 @@ export function PassportClient({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setPhotoError("Por favor, selecione um arquivo de imagem válido.");
+      setPhotoError("Por favor, selecione um arquivo de imagem vÃ¡lido.");
       return;
     }
 
     if (file.size > 4 * 1024 * 1024) {
-      setPhotoError("A imagem deve ter no máximo 4MB.");
+      setPhotoError("A imagem deve ter no mÃ¡ximo 4MB.");
       return;
     }
 
@@ -139,7 +139,7 @@ export function PassportClient({
 
   const switchThemeToEvent = (evtName: string, imgUrl: string) => {
     setDisplayedThemeUrl(imgUrl);
-    setDisplayedThemeTitle(`Edição: ${evtName}`);
+    setDisplayedThemeTitle(`EdiÃ§Ã£o: ${evtName}`);
     passportCardRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -149,13 +149,13 @@ export function PassportClient({
     passportCardRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Mapeia os 12 slots mensais (Janeiro a Dezembro)
+  // Mapeia os 12 slots mensais (Setembro/2026 a Agosto/2027)
   const slots = Array.from({ length: 12 }).map((_, idx) => {
     const event = events[idx];
     const stamp = stamps.find((s) => event && s.eventId === event.id);
     return {
       slotIndex: idx + 1,
-      monthLabel: MONTH_NAMES[idx],
+      monthLabel: event ? MONTH_NAMES[new Date(event.startDate).getUTCMonth()] + "/" + String(new Date(event.startDate).getUTCFullYear()).slice(-2) : "-",
       event,
       stamp,
     };
@@ -163,7 +163,7 @@ export function PassportClient({
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-16">
-      {/* Barra superior de navegação */}
+      {/* Barra superior de navegaÃ§Ã£o */}
       <header className="border-b border-primary/20 bg-surface/90 px-4 py-3 backdrop-blur sticky top-0 z-20 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-xs font-bold text-premium border border-primary/30">
@@ -185,7 +185,7 @@ export function PassportClient({
       </header>
 
       <main className="mx-auto max-w-xl p-4 space-y-6">
-        {/* Notificações de Troca de Foto */}
+        {/* NotificaÃ§Ãµes de Troca de Foto */}
         {photoSuccess && (
           <div className="rounded-2xl border border-success/40 bg-success/10 p-3 text-xs text-success text-center font-medium animate-in fade-in">
             {photoSuccess}
@@ -197,7 +197,7 @@ export function PassportClient({
           </div>
         )}
 
-        {/* Card de Identificação do Participante com Foto */}
+        {/* Card de IdentificaÃ§Ã£o do Participante com Foto */}
         <section className="rounded-3xl border border-primary/30 bg-surface/90 p-5 shadow-xl backdrop-blur space-y-4">
           <div className="flex items-center gap-4">
             {/* Foto 3x4 / Avatar com Troca */}
@@ -222,7 +222,7 @@ export function PassportClient({
                 title="Trocar Foto"
                 className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow-md hover:bg-primary/90 transition text-[10px] cursor-pointer"
               >
-                {uploadingPhoto ? "..." : "📷"}
+                {uploadingPhoto ? "..." : "ðŸ“·"}
               </button>
               <input
                 ref={fileInputRef}
@@ -242,13 +242,13 @@ export function PassportClient({
               </div>
               {realEstateAgency && (
                 <p className="text-xs text-premium font-semibold truncate flex items-center gap-1 mt-0.5">
-                  <span>🏢</span> {realEstateAgency}
+                  <span>ðŸ¢</span> {realEstateAgency}
                 </p>
               )}
               <p className="text-[11px] text-muted truncate mt-0.5">{userEmail}</p>
             </div>
 
-            {/* Número do Passaporte */}
+            {/* NÃºmero do Passaporte */}
             <div className="text-right shrink-0">
               <span className="block text-[9px] uppercase tracking-wider text-muted">Passaporte</span>
               <span className="font-mono text-xs font-bold text-secondary">{passportNumber}</span>
@@ -279,7 +279,7 @@ export function PassportClient({
           </div>
         </section>
 
-        {/* PASSAPORTE OFICIAL — ARTE BAR JRC COM OS 12 CARIMBOS */}
+        {/* PASSAPORTE OFICIAL â€” ARTE BAR JRC COM OS 12 CARIMBOS */}
         <section
           ref={passportCardRef}
           aria-label="Passaporte Oficial Bar JRC"
@@ -288,7 +288,7 @@ export function PassportClient({
           {/* Seletor / Indicador da Arte Exibida */}
           <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between pointer-events-auto">
             <span className="rounded-full bg-black/70 backdrop-blur-md px-3 py-1 text-[10px] font-bold text-amber-300 border border-amber-400/30">
-              🎨 {displayedThemeTitle}
+              ðŸŽ¨ {displayedThemeTitle}
             </span>
 
             {displayedThemeTitle !== "Arte Oficial JRC" && (
@@ -297,12 +297,12 @@ export function PassportClient({
                 onClick={resetThemeToOfficial}
                 className="rounded-full bg-black/70 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-white/80 hover:text-white border border-white/20 transition cursor-pointer"
               >
-                Voltar à Arte Oficial
+                Voltar Ã  Arte Oficial
               </button>
             )}
           </div>
 
-          {/* Imagem de Fundo Dinâmica do Passaporte */}
+          {/* Imagem de Fundo DinÃ¢mica do Passaporte */}
           <div className="relative w-full aspect-[4/5] sm:aspect-[3/4] overflow-hidden">
             <Image
               src={displayedThemeUrl}
@@ -320,7 +320,7 @@ export function PassportClient({
               <div className="text-center mb-2.5">
                 <span className="inline-block rounded-full bg-black/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur border border-amber-400/40">
                   {stamps.length === 12
-                    ? "🏆 Parabéns! 12 Carimbos Completados — Dezembro é Seu!"
+                    ? "ðŸ† ParabÃ©ns! 12 Carimbos Completados â€” Setembro de 2027 Ã© Seu!"
                     : `${stamps.length} de 12 Carimbos Conquistados`}
                 </span>
               </div>
@@ -356,7 +356,7 @@ export function PassportClient({
                           </span>
                         </div>
                       ) : (
-                        /* Slot Disponível / Pendente */
+                        /* Slot DisponÃ­vel / Pendente */
                         <div className="flex flex-col items-center justify-center">
                           <span className="text-[10px] sm:text-xs font-bold text-white/80">
                             {slot.monthLabel}
@@ -374,11 +374,11 @@ export function PassportClient({
           </div>
         </section>
 
-        {/* Lista de Próximos Eventos Bar JRC com Arte Temática */}
+        {/* Lista de PrÃ³ximos Eventos Bar JRC com Arte TemÃ¡tica */}
         <section aria-labelledby="upcoming-heading" className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 id="upcoming-heading" className="text-xs font-bold tracking-wider text-muted uppercase">
-              Próximos Encontros Mensais
+              PrÃ³ximos Encontros Mensais
             </h2>
             <span className="text-[11px] text-premium font-medium">Bar JRC 2026</span>
           </div>
@@ -395,7 +395,7 @@ export function PassportClient({
                   className="flex items-center justify-between rounded-2xl border border-primary/20 bg-surface p-3.5 transition hover:border-primary/40 gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Thumbnail da Arte Temática se houver */}
+                    {/* Thumbnail da Arte TemÃ¡tica se houver */}
                     {evt.themeImageUrl ? (
                       <div className="relative h-12 w-10 shrink-0 rounded-lg overflow-hidden border border-secondary/40 shadow-md">
                         <Image
@@ -421,7 +421,7 @@ export function PassportClient({
                         )}
                       </div>
                       <p className="text-[11px] text-muted mt-0.5">
-                        {evt.location || "Espaço Bar JRC"} •{" "}
+                        {evt.location || "EspaÃ§o Bar JRC"} â€¢{" "}
                         {new Date(evt.startDate).toLocaleDateString("pt-BR", {
                           day: "2-digit",
                           month: "short",

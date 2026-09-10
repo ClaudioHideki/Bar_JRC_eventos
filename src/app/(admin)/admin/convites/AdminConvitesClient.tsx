@@ -330,7 +330,7 @@ export function AdminConvitesClient({
                 : "";
 
               const whatsappUrl = `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(
-                `🍻 *Convite Exclusivo — Passaporte Bar JRC (40 Anos)*\n\nOlá${item.name ? `, *${item.name}*` : ""}! Você recebeu um convite oficial para participar dos encontros mensais do Bar JRC.\n\nComplete os 12 carimbos mensais e garanta o direito de escolher a temática do evento de encerramento em Dezembro!\n\n👉 *Ative seu Passaporte Digital no link abaixo:*\n${clickableLink}`
+                `🍻 *Convite Exclusivo — Passaporte Bar JRC (40 Anos)*\n\nOlá${item.name ? `, *${item.name}*` : ""}! Você recebeu um convite oficial para participar dos encontros mensais do Bar JRC.\n\nComplete os 12 carimbos mensais e garanta o direito de escolher a temática do evento de encerramento em Setembro de 2027!\n\n👉 *Ative seu Passaporte Digital no link abaixo:*\n${clickableLink}`
               )}`;
 
               return (

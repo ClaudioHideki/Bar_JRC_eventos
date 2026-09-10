@@ -33,7 +33,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
   // Estado do Tema do Programa
   const [programImageUrl, setProgramImageUrl] = useState(initialTheme.themeImageUrl || "/brand/passaporte-template.jpg");
   const [themeTitle, setThemeTitle] = useState(initialTheme.themeTitle || "Passaporte JRC");
-  const [themeSubtitle, setThemeSubtitle] = useState(initialTheme.themeSubtitle || "Dezembro é seu. Se você estiver lá até o fim.");
+  const [themeSubtitle, setThemeSubtitle] = useState(initialTheme.themeSubtitle || "Setembro de 2027 é seu. Se você estiver lá até o fim.");
 
   // Estado da Arte do Evento selecionado
   const [eventImageUrl, setEventImageUrl] = useState<string>("");
@@ -188,7 +188,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
   const resetProgramDefault = () => {
     setProgramImageUrl("/brand/passaporte-template.jpg");
     setThemeTitle("Passaporte JRC");
-    setThemeSubtitle("Dezembro é seu. Se você estiver lá até o fim.");
+    setThemeSubtitle("Setembro de 2027 é seu. Se você estiver lá até o fim.");
     setSuccess("Tema restaurado para a arte oficial padrão.");
   };
 
@@ -326,7 +326,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
                 rows={2}
                 value={themeSubtitle}
                 onChange={(e) => setThemeSubtitle(e.target.value)}
-                placeholder="Ex: Dezembro é seu. Se você estiver lá até o fim."
+                placeholder="Ex: Setembro de 2027 é seu. Se você estiver lá até o fim."
                 className="w-full rounded-xl border border-muted/30 bg-background p-3 text-xs text-foreground placeholder:text-muted/40 focus:border-primary focus:outline-none"
               />
             </div>

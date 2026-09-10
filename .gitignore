@@ -50,3 +50,4 @@ temp/
 scratch/
 *.tsbuildinfo
 backups/
+prisma/seed.ts.backup

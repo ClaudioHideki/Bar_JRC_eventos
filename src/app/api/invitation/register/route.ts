@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
         status: true,
         programId: true,
         claimedEmail: true,
+        phone: true,
       },
     });
 
@@ -176,9 +177,10 @@ export async function POST(req: NextRequest) {
             status: string;
             programId: string;
             claimedEmail: string | null;
+            phone: string | null;
           }>
         >`
-          SELECT "id", "status", "programId", "claimedEmail"
+          SELECT "id", "status", "programId", "claimedEmail", "phone"
           FROM "Invitation"
           WHERE "tokenHash" = ${tokenHash}
           FOR UPDATE
@@ -306,6 +308,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (newUser) {
+      await prisma.user.update({
+        where: { id: newUser.id },
+        data: { phone: checkInv.phone || null },
+      });
+
       await prisma.invitation.update({
         where: { id: txResult.invitationId },
         data: {
