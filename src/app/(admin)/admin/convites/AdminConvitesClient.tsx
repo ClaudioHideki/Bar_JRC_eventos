@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface InvitationItem {
@@ -8,10 +8,20 @@ interface InvitationItem {
   status: string;
   claimedName: string | null;
   claimedEmail: string | null;
+  phone: string | null;
+  inviteLink: string | null;
   usedByName: string | null;
   usedByEmail: string | null;
   usedAt: string | null;
   createdAt: string;
+}
+
+interface GeneratedToken {
+  id: string;
+  inviteLink: string;
+  name?: string;
+  email?: string;
+  phone?: string;
 }
 
 export function AdminConvitesClient({
@@ -22,76 +32,105 @@ export function AdminConvitesClient({
   initialInvitations: InvitationItem[];
 }) {
   const router = useRouter();
-  const [invitations, setInvitations] = useState<InvitationItem[]>(initialInvitations);
-  
-  useEffect(() => {
-    setInvitations(initialInvitations);
-  }, [initialInvitations]);
+
+  const [invitations, setInvitations] =
+    useState<InvitationItem[]>(initialInvitations);
 
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generatedTokens, setGeneratedTokens] = useState<
-    Array<{ id: string; inviteLink: string; name?: string; email?: string; phone?: string }>
+    GeneratedToken[]
   >([]);
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Formulário de Convite Individual
+  // Novo convite
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
 
+  // Edição
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+
+  useEffect(() => {
+    setInvitations(initialInvitations);
+  }, [initialInvitations]);
+
   const activeCount = invitations.filter((i) =>
     ["AVAILABLE", "SENT", "USED"].includes(i.status)
   ).length;
 
-  const handleSendSingleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const clearMessages = () => {
     setError(null);
     setSuccess(null);
+  };
+
+  const handleSendSingleInvite = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    setLoading(true);
+    clearMessages();
 
     try {
       const res = await fetch("/api/admin/invitations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
         body: JSON.stringify({
           recipientName: clientName,
           recipientEmail: clientEmail,
+          phone: clientPhone,
         }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error || "Erro ao criar convite.");
+        throw new Error(
+          data.error || "Erro ao criar convite."
+        );
       }
 
-      setGeneratedTokens([
+      setGeneratedTokens((current) => [
         {
           id: data.id,
           inviteLink: data.inviteLink,
-          name: data.claimedName,
-          email: data.claimedEmail,
-          phone: clientPhone,
+          name: data.claimedName || undefined,
+          email: data.claimedEmail || undefined,
+          phone: data.phone || undefined,
         },
-        ...generatedTokens,
+        ...current,
       ]);
 
       setSuccess(
         data.emailSent
           ? `Convite gerado e enviado por e-mail para ${data.claimedEmail}!`
-          : `Convite gerado para ${clientName || "o cliente"}! Copie o link abaixo, abra diretamente ou compartilhe via WhatsApp.`
+          : `Convite gerado para ${
+              clientName || "o cliente"
+            }! O link já está disponível para copiar ou compartilhar.`
       );
 
       setClientName("");
       setClientEmail("");
       setClientPhone("");
       setShowInviteForm(false);
+
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Falha ao criar convite.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao criar convite."
+      );
     } finally {
       setLoading(false);
     }
@@ -99,120 +138,381 @@ export function AdminConvitesClient({
 
   const handleGenerateBatch = async (count: number) => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
+    clearMessages();
 
     try {
       const res = await fetch("/api/admin/invitations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
-        body: JSON.stringify({ count }),
+        body: JSON.stringify({
+          count,
+        }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error || "Erro ao gerar convites.");
+        throw new Error(
+          data.error || "Erro ao gerar convites."
+        );
       }
 
-      setGeneratedTokens(data);
-      setSuccess(`Lote de ${data.length} convite(s) gerado com sucesso!`);
+      const generated: GeneratedToken[] = data.map(
+        (item: {
+          id: string;
+          inviteLink: string;
+        }) => ({
+          id: item.id,
+          inviteLink: item.inviteLink,
+        })
+      );
+
+      setGeneratedTokens(generated);
+
+      setSuccess(
+        `Lote de ${generated.length} convite(s) gerado com sucesso!`
+      );
+
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Falha ao gerar convites.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao gerar convites."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeletePermanent = async (invitationId: string, isUsed?: boolean) => {
+  const handleDeletePermanent = async (
+    invitationId: string,
+    isUsed?: boolean
+  ) => {
     const confirmMessage = isUsed
-      ? "Atenção: Este convite já foi utilizado por um participante. Tem certeza que deseja excluí-lo? O registro do convite será apagado e a vaga liberada."
+      ? "Atenção: este convite já foi utilizado por um participante. Tem certeza que deseja excluí-lo? O registro do convite será apagado."
       : "Deseja excluir definitivamente este convite do banco de dados?";
-    if (!confirm(confirmMessage)) return;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
     setLoading(true);
-    setError(null);
-    setSuccess(null);
+    clearMessages();
 
     try {
       const res = await fetch("/api/admin/invitations", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
-        body: JSON.stringify({ invitationId, permanentDelete: true }),
+        body: JSON.stringify({
+          invitationId,
+          permanentDelete: true,
+        }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error || "Erro ao excluir convite.");
+        throw new Error(
+          data.error || "Erro ao excluir convite."
+        );
       }
 
+      setInvitations((current) =>
+        current.filter(
+          (invitation) =>
+            invitation.id !== invitationId
+        )
+      );
+
+      setGeneratedTokens((current) =>
+        current.filter(
+          (invitation) =>
+            invitation.id !== invitationId
+        )
+      );
+
       setSuccess("Convite excluído com sucesso!");
+
+      if (editingId === invitationId) {
+        cancelEdit();
+      }
+
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Falha ao excluir.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao excluir convite."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleClearUnused = async () => {
-    if (!confirm("Tem certeza que deseja apagar TODOS os convites não utilizados da lista?")) return;
+    if (
+      !confirm(
+        "Tem certeza que deseja apagar TODOS os convites não utilizados da lista?"
+      )
+    ) {
+      return;
+    }
+
     setLoading(true);
-    setError(null);
-    setSuccess(null);
+    clearMessages();
 
     try {
       const res = await fetch("/api/admin/invitations", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
-        body: JSON.stringify({ clearUnused: true }),
+        body: JSON.stringify({
+          clearUnused: true,
+        }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error || "Erro ao limpar convites.");
+        throw new Error(
+          data.error || "Erro ao limpar convites."
+        );
       }
 
-      setSuccess(data.message || "Convites não utilizados excluídos!");
+      setSuccess(
+        data.message ||
+          "Convites não utilizados excluídos!"
+      );
+
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Falha ao limpar.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao limpar convites."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const copyToClipboard = (link: string, id: string) => {
-    navigator.clipboard.writeText(link);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2500);
+  const startEdit = (invitation: InvitationItem) => {
+    if (invitation.status === "USED") {
+      setError(
+        "Este convite já foi utilizado. Os dados do destinatário não podem mais ser alterados."
+      );
+      return;
+    }
+
+    clearMessages();
+
+    setEditingId(invitation.id);
+    setEditName(invitation.claimedName || "");
+    setEditEmail(invitation.claimedEmail || "");
+    setEditPhone(invitation.phone || "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditEmail("");
+    setEditPhone("");
+  };
+
+  const handleSaveEdit = async (
+    invitationId: string
+  ) => {
+    setLoading(true);
+    clearMessages();
+
+    try {
+      const res = await fetch("/api/admin/invitations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          invitationId,
+          recipientName: editName,
+          recipientEmail: editEmail,
+          recipientPhone: editPhone,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Erro ao editar convite."
+        );
+      }
+
+      setInvitations((current) =>
+        current.map((invitation) =>
+          invitation.id === invitationId
+            ? {
+                ...invitation,
+                status: data.status,
+                claimedName:
+                  data.claimedName || null,
+                claimedEmail:
+                  data.claimedEmail || null,
+                phone: data.phone || null,
+                inviteLink:
+                  data.inviteLink ||
+                  invitation.inviteLink,
+              }
+            : invitation
+        )
+      );
+
+      setGeneratedTokens((current) =>
+        current.map((invitation) =>
+          invitation.id === invitationId
+            ? {
+                ...invitation,
+                name: data.claimedName || undefined,
+                email:
+                  data.claimedEmail || undefined,
+                phone: data.phone || undefined,
+                inviteLink:
+                  data.inviteLink ||
+                  invitation.inviteLink,
+              }
+            : invitation
+        )
+      );
+
+      cancelEdit();
+
+      setSuccess(
+        "Convite atualizado. O link original foi mantido."
+      );
+
+      router.refresh();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao editar convite."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (
+    link: string,
+    id: string
+  ) => {
+    try {
+      await navigator.clipboard.writeText(link);
+
+      setCopiedId(id);
+
+      setTimeout(() => {
+        setCopiedId(null);
+      }, 2500);
+    } catch {
+      setError(
+        "Não foi possível copiar o link automaticamente."
+      );
+    }
+  };
+
+  const buildWhatsappUrl = (
+    link: string,
+    name?: string | null,
+    phone?: string | null
+  ) => {
+    const clickableLink = link.includes("localhost")
+      ? link.replace("localhost", "127.0.0.1")
+      : link;
+
+    const cleanPhone = phone
+      ? phone.replace(/\D/g, "")
+      : "";
+
+    const normalizedPhone = cleanPhone
+      ? cleanPhone.startsWith("55")
+        ? cleanPhone
+        : `55${cleanPhone}`
+      : "";
+
+    const phoneParam = normalizedPhone
+      ? `phone=${normalizedPhone}&`
+      : "";
+
+    const message = `🍻 *Convite Exclusivo — Passaporte Bar JRC (40 Anos)*
+
+Olá${name ? `, *${name}*` : ""}! Você recebeu o passaporte oficial, participe das campanhas comerciais, e garanta seus vistos no nosso passaporte.
+
+Complete os 12 carimbos mensais e garanta o direito de escolher a temática do evento de encerramento em Setembro de 2027!
+
+Obs.: Caso ninguém atinja os 12 selos, será válido quem tiver a maior quantidade de carimbos.
+
+👉 *Ative seu Passaporte Digital no link abaixo:*
+${clickableLink}`;
+
+    return `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(
+      message
+    )}`;
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Gestão de Convites Oficiais</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Gestão de Convites Oficiais
+          </h1>
+
           <p className="text-sm text-muted">
-            Total: <span className="font-bold text-foreground">{activeCount}</span> convites gerados • <span className="text-success font-semibold">Emissão Ilimitada</span>
+            Total:{" "}
+            <span className="font-bold text-foreground">
+              {activeCount}
+            </span>{" "}
+            convites gerados
+            {programCapacity > 0 && (
+              <>
+                {" "}
+                •{" "}
+                <span className="font-semibold text-success">
+                  Emissão Ilimitada
+                </span>
+              </>
+            )}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setShowInviteForm(!showInviteForm)}
-            className="rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2 text-xs font-bold text-white shadow hover:opacity-95 transition"
+            onClick={() =>
+              setShowInviteForm(
+                (current) => !current
+              )
+            }
+            className="rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2 text-xs font-bold text-white shadow transition hover:opacity-95"
           >
-            {showInviteForm ? "Fechar Formulário" : "✉️ Convidar Cliente por Link / E-mail"}
+            {showInviteForm
+              ? "Fechar Formulário"
+              : "Convidar Cliente por Link / E-mail"}
           </button>
 
           <button
             onClick={() => handleGenerateBatch(10)}
             disabled={loading}
-            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
-            title="Gerar lote de 10 convites livres"
+            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition hover:bg-primary/20 disabled:opacity-50"
           >
             +10 Livres
           </button>
@@ -220,8 +520,7 @@ export function AdminConvitesClient({
           <button
             onClick={() => handleGenerateBatch(25)}
             disabled={loading}
-            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
-            title="Gerar lote de 25 convites livres"
+            className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition hover:bg-primary/20 disabled:opacity-50"
           >
             +25 Livres
           </button>
@@ -229,7 +528,7 @@ export function AdminConvitesClient({
           <button
             onClick={handleClearUnused}
             disabled={loading}
-            className="rounded-xl border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger/10 transition disabled:opacity-50"
+            className="rounded-xl border border-danger/30 px-3 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-50"
           >
             Limpar Livres
           </button>
@@ -237,61 +536,84 @@ export function AdminConvitesClient({
       </div>
 
       {error && (
-        <div role="alert" className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+        <div
+          role="alert"
+          className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+        >
           {error}
         </div>
       )}
 
       {success && (
-        <div role="status" className="rounded-xl border border-secondary/30 bg-secondary/10 p-3 text-sm text-secondary">
+        <div
+          role="status"
+          className="rounded-xl border border-secondary/30 bg-secondary/10 p-3 text-sm text-secondary"
+        >
           {success}
         </div>
       )}
 
-      {/* Formulário para Convidar Cliente Específico */}
       {showInviteForm && (
-        <form onSubmit={handleSendSingleInvite} className="rounded-2xl border border-primary/30 bg-surface p-6 shadow-xl space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-premium">
-            Enviar Convite Oficial Para o Cliente
-          </h3>
-          <p className="text-xs text-muted">
-            Gera o link de ativação individual para o cliente acessar o Passaporte JRC. Você pode enviar pelo WhatsApp ou por e-mail.
-          </p>
+        <form
+          onSubmit={handleSendSingleInvite}
+          className="space-y-4 rounded-2xl border border-primary/30 bg-surface p-6 shadow-xl"
+        >
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-premium">
+              Gerar Convite Oficial
+            </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <p className="mt-1 text-xs text-muted">
+              Crie o convite e compartilhe o link pelo
+              WhatsApp ou por e-mail.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
                 Nome do Cliente / Corretor *
               </label>
+
               <input
                 type="text"
                 required
                 value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
+                onChange={(e) =>
+                  setClientName(e.target.value)
+                }
                 placeholder="Ex: João da Silva"
                 className="h-10 w-full rounded-xl border border-muted/30 bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
-                WhatsApp do Cliente (Opcional)
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
+                WhatsApp do Cliente
               </label>
+
               <input
                 type="tel"
                 value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
+                onChange={(e) =>
+                  setClientPhone(e.target.value)
+                }
                 placeholder="Ex: 11999998888"
                 className="h-10 w-full rounded-xl border border-muted/30 bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
-                E-mail do Cliente (Opcional)
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
+                E-mail do Cliente
               </label>
+
               <input
                 type="email"
                 value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
+                onChange={(e) =>
+                  setClientEmail(e.target.value)
+                }
                 placeholder="cliente@imobiliaria.com.br"
                 className="h-10 w-full rounded-xl border border-muted/30 bg-background px-3 text-xs text-foreground focus:border-primary focus:outline-none"
               />
@@ -301,155 +623,386 @@ export function AdminConvitesClient({
           <button
             type="submit"
             disabled={loading}
-            className="rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-primary/90 transition disabled:opacity-50"
+            className="rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-primary/90 disabled:opacity-50"
           >
-            {loading ? "Gerando Convite..." : "Gerar Link de Convite"}
+            {loading
+              ? "Gerando Convite..."
+              : "Gerar Link de Convite"}
           </button>
         </form>
       )}
 
-      {/* Exibição dos Tokens Recém-Gerados com Links Copiáveis e WhatsApp */}
       {generatedTokens.length > 0 && (
-        <div className="rounded-2xl border border-secondary/40 bg-surface p-5 shadow-xl space-y-3">
+        <div className="space-y-3 rounded-2xl border border-secondary/40 bg-surface p-5 shadow-xl">
           <h3 className="text-sm font-bold text-secondary">
             Links Oficiais de Convite Gerados
           </h3>
+
           <p className="text-xs text-muted">
-            Envie este link direto para o cliente ativar o seu passaporte:
+            Os links também ficam salvos na tabela de
+            convites abaixo.
           </p>
-          <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
-            {generatedTokens.map((item) => {
-              // No WhatsApp, URLs com 'localhost' não são clicáveis pelo app. Convertemos para 127.0.0.1 em ambiente local para o WhatsApp torná-lo clicável!
-              const clickableLink = item.inviteLink.includes("localhost")
-                ? item.inviteLink.replace("localhost", "127.0.0.1")
-                : item.inviteLink;
 
-              const cleanPhone = item.phone ? item.phone.replace(/\D/g, "") : "";
-              const phoneParam = cleanPhone
-                ? `phone=${cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`}&`
-                : "";
+          <div className="max-h-60 space-y-2 overflow-y-auto pr-2">
+            {generatedTokens.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col justify-between gap-2 rounded-xl border border-muted/20 bg-background p-3 text-xs sm:flex-row sm:items-center"
+              >
+                <div className="min-w-0 flex-1">
+                  {item.name && (
+                    <p className="font-bold text-foreground">
+                      {item.name}
+                    </p>
+                  )}
 
-              const whatsappUrl = `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(
-                `🍻 *Convite Exclusivo — Passaporte Bar JRC (40 Anos)*\n\nOlá${item.name ? `, *${item.name}*` : ""}! Você recebeu um convite oficial para participar dos encontros mensais do Bar JRC.\n\nComplete os 12 carimbos mensais e garanta o direito de escolher a temática do evento de encerramento em Setembro de 2027!\n\n👉 *Ative seu Passaporte Digital no link abaixo:*\n${clickableLink}`
-              )}`;
-
-              return (
-                <div
-                  key={item.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl bg-background p-3 text-xs border border-muted/20 gap-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    {item.name && <p className="font-bold text-foreground">{item.name}</p>}
-                    <span className="font-mono text-muted/80 truncate block text-[11px]">
-                      {item.inviteLink}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <a
-                      href={item.inviteLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1 font-semibold hover:bg-blue-500/30 transition text-xs flex items-center gap-1"
-                      title="Abrir página de cadastro do convite em uma nova aba"
-                    >
-                      <span>🔗</span> Abrir Convite
-                    </a>
-                    <button
-                      onClick={() => copyToClipboard(item.inviteLink, item.id)}
-                      className="rounded-lg bg-primary/20 px-3 py-1 font-semibold text-primary hover:bg-primary/30 transition text-xs"
-                    >
-                      {copiedId === item.id ? "Copiado!" : "Copiar Link"}
-                    </button>
-                    <a
-                      href={whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 font-semibold hover:bg-emerald-500/30 transition text-xs flex items-center gap-1"
-                    >
-                      <span>💬</span> WhatsApp
-                    </a>
-                  </div>
+                  <span className="block truncate font-mono text-[11px] text-muted/80">
+                    {item.inviteLink}
+                  </span>
                 </div>
-              );
-            })}
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <a
+                    href={item.inviteLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/20"
+                  >
+                    Abrir Convite
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copyToClipboard(
+                        item.inviteLink,
+                        item.id
+                      )
+                    }
+                    className="rounded-lg bg-primary/20 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/30"
+                  >
+                    {copiedId === item.id
+                      ? "Copiado!"
+                      : "Copiar Link"}
+                  </button>
+
+                  <a
+                    href={buildWhatsappUrl(
+                      item.inviteLink,
+                      item.name,
+                      item.phone
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold text-success transition hover:bg-success/20"
+                  >
+                    WhatsApp
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Tabela de Convites */}
       <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface shadow-lg">
+        <div className="border-b border-muted/20 p-4">
+          <h2 className="font-bold text-foreground">
+            Todos os Convites
+          </h2>
+
+          <p className="mt-1 text-xs text-muted">
+            Consulte, edite e reutilize o link de cada
+            convite criado.
+          </p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-muted/20 bg-background/50 text-muted uppercase text-[10px] font-bold">
+            <thead className="border-b border-muted/20 bg-background/50 text-[10px] font-bold uppercase text-muted">
               <tr>
                 <th className="p-4">Status</th>
-                <th className="p-4">Destinatário Marcado</th>
+                <th className="p-4">Destinatário</th>
+                <th className="p-4">Telefone</th>
                 <th className="p-4">Utilizado Por</th>
                 <th className="p-4">Data Utilização</th>
-                <th className="p-4 text-right">Ações</th>
+                <th className="p-4">Link</th>
+                <th className="p-4 text-right">
+                  Ações
+                </th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-muted/10">
+              {invitations.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="p-8 text-center text-muted"
+                  >
+                    Nenhum convite criado.
+                  </td>
+                </tr>
+              )}
+
               {invitations.map((inv) => {
-                const isUsed = inv.status === "USED";
-                const isRevoked = inv.status === "REVOKED";
+                const isUsed =
+                  inv.status === "USED";
+
+                const isRevoked =
+                  inv.status === "REVOKED";
+
+                const isEditing =
+                  editingId === inv.id;
 
                 return (
-                  <tr key={inv.id} className="hover:bg-white/5 transition">
+                  <tr
+                    key={inv.id}
+                    className="align-top transition hover:bg-white/5"
+                  >
                     <td className="p-4">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                        className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
                           isUsed
-                            ? "bg-success/10 text-success border-success/30"
+                            ? "border-success/30 bg-success/10 text-success"
                             : isRevoked
-                              ? "bg-danger/10 text-danger border-danger/30"
-                              : inv.status === "SENT"
-                                ? "bg-secondary/10 text-secondary border-secondary/30"
-                                : "bg-primary/10 text-primary border-primary/30"
+                              ? "border-danger/30 bg-danger/10 text-danger"
+                              : inv.status ===
+                                  "SENT"
+                                ? "border-secondary/30 bg-secondary/10 text-secondary"
+                                : "border-primary/30 bg-primary/10 text-primary"
                         }`}
                       >
                         {inv.status}
                       </span>
                     </td>
+
                     <td className="p-4 font-medium text-foreground">
-                      {inv.claimedName || inv.claimedEmail ? (
+                      {isEditing ? (
+                        <div className="min-w-[220px] space-y-2">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) =>
+                              setEditName(
+                                e.target.value
+                              )
+                            }
+                            placeholder="Nome"
+                            className="h-9 w-full rounded-lg border border-muted/30 bg-background px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                          />
+
+                          <input
+                            type="email"
+                            value={editEmail}
+                            onChange={(e) =>
+                              setEditEmail(
+                                e.target.value
+                              )
+                            }
+                            placeholder="E-mail"
+                            className="h-9 w-full rounded-lg border border-muted/30 bg-background px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                      ) : inv.claimedName ||
+                        inv.claimedEmail ? (
                         <div>
-                          <p>{inv.claimedName || "—"}</p>
-                          <p className="text-[10px] text-muted">{inv.claimedEmail || ""}</p>
+                          <p>
+                            {inv.claimedName || "—"}
+                          </p>
+
+                          <p className="text-[10px] text-muted">
+                            {inv.claimedEmail || ""}
+                          </p>
                         </div>
                       ) : (
-                        <span className="text-muted/40">Livre</span>
+                        <span className="text-muted/40">
+                          Livre
+                        </span>
                       )}
                     </td>
+
+                    <td className="p-4 text-foreground">
+                      {isEditing ? (
+                        <input
+                          type="tel"
+                          value={editPhone}
+                          onChange={(e) =>
+                            setEditPhone(
+                              e.target.value
+                            )
+                          }
+                          placeholder="11999998888"
+                          className="h-9 min-w-[150px] rounded-lg border border-muted/30 bg-background px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        />
+                      ) : (
+                        inv.phone || (
+                          <span className="text-muted/40">
+                            —
+                          </span>
+                        )
+                      )}
+                    </td>
+
                     <td className="p-4 text-foreground">
                       {inv.usedByName ? (
                         <div>
-                          <p className="font-semibold text-success">{inv.usedByName}</p>
-                          <p className="text-[10px] text-muted">{inv.usedByEmail}</p>
+                          <p className="font-semibold text-success">
+                            {inv.usedByName}
+                          </p>
+
+                          <p className="text-[10px] text-muted">
+                            {inv.usedByEmail}
+                          </p>
                         </div>
                       ) : (
-                        <span className="text-muted/40">—</span>
+                        <span className="text-muted/40">
+                          —
+                        </span>
                       )}
                     </td>
+
                     <td className="p-4 text-muted">
                       {inv.usedAt
-                        ? new Date(inv.usedAt).toLocaleString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
+                        ? new Date(
+                            inv.usedAt
+                          ).toLocaleString(
+                            "pt-BR",
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }
+                          )
                         : "—"}
                     </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleDeletePermanent(inv.id, isUsed)}
-                        disabled={loading}
-                        className="rounded-lg border border-danger/30 px-2.5 py-1 text-[11px] font-semibold text-danger hover:bg-danger/10 transition cursor-pointer"
-                        title="Excluir convite permanentemente"
-                      >
-                        Excluir
-                      </button>
+
+                    <td className="p-4">
+                      {inv.inviteLink ? (
+                        <span
+                          className="block max-w-[180px] truncate font-mono text-[10px] text-muted"
+                          title={inv.inviteLink}
+                        >
+                          {inv.inviteLink}
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[10px] text-muted/50"
+                          title="Este convite foi criado antes do armazenamento seguro dos links."
+                        >
+                          Link antigo indisponível
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="p-4">
+                      <div className="flex min-w-[300px] flex-wrap justify-end gap-2">
+                        {isEditing ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleSaveEdit(
+                                  inv.id
+                                )
+                              }
+                              disabled={loading}
+                              className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success transition hover:bg-success/20 disabled:opacity-50"
+                            >
+                              Salvar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              disabled={loading}
+                              className="rounded-lg border border-muted/30 px-2.5 py-1 text-[11px] font-semibold text-muted transition hover:bg-muted/10 disabled:opacity-50"
+                            >
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                startEdit(inv)
+                              }
+                              disabled={
+                                loading || isUsed
+                              }
+                              title={
+                                isUsed
+                                  ? "Convite já utilizado"
+                                  : "Editar nome, e-mail e telefone"
+                              }
+                              className="rounded-lg border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-[11px] font-semibold text-secondary transition hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Editar
+                            </button>
+
+                            {inv.inviteLink && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      inv.inviteLink!,
+                                      inv.id
+                                    )
+                                  }
+                                  className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+                                >
+                                  {copiedId ===
+                                  inv.id
+                                    ? "Copiado!"
+                                    : "Copiar Link"}
+                                </button>
+
+                                <a
+                                  href={
+                                    inv.inviteLink
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-lg border border-primary/30 px-2.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/10"
+                                >
+                                  Abrir Convite
+                                </a>
+
+                                <a
+                                  href={buildWhatsappUrl(
+                                    inv.inviteLink,
+                                    inv.claimedName,
+                                    inv.phone
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success transition hover:bg-success/20"
+                                >
+                                  WhatsApp
+                                </a>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeletePermanent(
+                                  inv.id,
+                                  isUsed
+                                )
+                              }
+                              disabled={loading}
+                              className="rounded-lg border border-danger/30 px-2.5 py-1 text-[11px] font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-50"
+                            >
+                              Excluir
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

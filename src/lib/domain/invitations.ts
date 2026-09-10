@@ -1,5 +1,6 @@
 import { prisma } from "../db/prisma";
 import {
+  encryptInvitationToken,
   generateSecureToken,
   hashInvitationToken,
   normalizeEmail,
@@ -9,6 +10,7 @@ import { InvitationStatus, ProgramStatus } from "@prisma/client";
 
 export async function getOrCreateDefaultProgram() {
   const defaultSlug = "passaporte-jrc-2026";
+
   let program = await prisma.program.findUnique({
     where: { slug: defaultSlug },
   });
@@ -36,7 +38,8 @@ export interface GeneratedInvitationResult {
 }
 
 /**
- * Gera um lote de convites garantindo no banco que a capacidade de 30 não é excedida.
+ * Gera um lote de convites garantindo no banco que a capacidade
+ * do programa não seja excedida.
  */
 export async function generateInvitationBatch({
   count,
@@ -50,9 +53,13 @@ export async function generateInvitationBatch({
   const program = await getOrCreateDefaultProgram();
 
   return await prisma.$transaction(async (tx) => {
-    // Bloqueia o programa com SELECT FOR UPDATE
-    const lockedProgram = await tx.$queryRaw<Array<{ id: string; capacity: number }>>`
-      SELECT "id", "capacity" FROM "Program" WHERE "id" = ${program.id} FOR UPDATE
+    const lockedProgram = await tx.$queryRaw<
+      Array<{ id: string; capacity: number }>
+    >`
+      SELECT "id", "capacity"
+      FROM "Program"
+      WHERE "id" = ${program.id}
+      FOR UPDATE
     `;
 
     if (!lockedProgram || lockedProgram.length === 0) {
@@ -61,11 +68,16 @@ export async function generateInvitationBatch({
 
     const capacity = lockedProgram[0].capacity;
 
-    // Contabiliza convites utilizáveis e utilizados
     const currentActiveInvites = await tx.invitation.count({
       where: {
         programId: program.id,
-        status: { in: [InvitationStatus.AVAILABLE, InvitationStatus.SENT, InvitationStatus.USED] },
+        status: {
+          in: [
+            InvitationStatus.AVAILABLE,
+            InvitationStatus.SENT,
+            InvitationStatus.USED,
+          ],
+        },
       },
     });
 
@@ -80,11 +92,13 @@ export async function generateInvitationBatch({
     for (let i = 0; i < count; i++) {
       const rawToken = generateSecureToken(32);
       const tokenHash = hashInvitationToken(rawToken);
+      const tokenEncrypted = encryptInvitationToken(rawToken);
 
       const inv = await tx.invitation.create({
         data: {
           programId: program.id,
           tokenHash,
+          tokenEncrypted,
           status: InvitationStatus.AVAILABLE,
           createdById: adminUserId ?? null,
         },
@@ -104,7 +118,10 @@ export async function generateInvitationBatch({
       actorRole: "ADMIN",
       action: "INVITATION_BATCH_GENERATED",
       entity: "Invitation",
-      details: { count, programId: program.id },
+      details: {
+        count,
+        programId: program.id,
+      },
       tx,
     });
 
@@ -129,7 +146,9 @@ export async function revokeInvitation({
     }
 
     if (inv.status === InvitationStatus.USED) {
-      throw new Error("Não é possível revogar um convite que já foi utilizado.");
+      throw new Error(
+        "Não é possível revogar um convite que já foi utilizado."
+      );
     }
 
     const updated = await tx.invitation.update({
@@ -157,28 +176,56 @@ export async function markInvitationAsSent({
   invitationId,
   recipientEmail,
   recipientName,
+  recipientPhone,
   adminUserId,
 }: {
   invitationId: string;
   recipientEmail?: string;
   recipientName?: string;
+  recipientPhone?: string;
   adminUserId: string;
 }) {
+  const invitation = await prisma.invitation.findUnique({
+    where: {
+      id: invitationId,
+    },
+  });
+
+  if (!invitation) {
+    throw new Error("Convite não encontrado.");
+  }
+
+  if (invitation.status === InvitationStatus.USED) {
+    throw new Error(
+      "Não é possível editar os dados de um convite já utilizado."
+    );
+  }
+
   return await prisma.invitation.update({
-    where: { id: invitationId },
+    where: {
+      id: invitationId,
+    },
     data: {
       status: InvitationStatus.SENT,
-      sentAt: new Date(),
-      claimedEmail: recipientEmail ? normalizeEmail(recipientEmail) : undefined,
-      claimedName: recipientName?.trim(),
+      sentAt: invitation.sentAt ?? new Date(),
+      claimedEmail: recipientEmail
+        ? normalizeEmail(recipientEmail)
+        : null,
+      claimedName: recipientName?.trim() || null,
+      phone: recipientPhone?.trim() || null,
     },
   });
 }
 
 export async function getInvitationByToken(rawToken: string) {
   const tokenHash = hashInvitationToken(rawToken);
+
   return await prisma.invitation.findUnique({
-    where: { tokenHash },
-    include: { program: true },
+    where: {
+      tokenHash,
+    },
+    include: {
+      program: true,
+    },
   });
 }

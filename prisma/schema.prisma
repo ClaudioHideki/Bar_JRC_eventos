@@ -73,21 +73,21 @@ enum QrChallengeStatus {
 // -----------------------------------------------------------------------------
 
 model User {
-  id            String     @id @default(uuid())
-  email         String     @unique
-  name          String
-  role          UserRole   @default(PARTICIPANT)
-  status        UserStatus @default(PENDING)
-  emailVerified Boolean    @default(false)
-  image            String?
-  realEstateAgency String?
-  phone            String?
-  birthDate        DateTime?
-  lgpdConsent      Boolean    @default(false)
-  lgpdConsentAt    DateTime?
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  name               String
+  role               UserRole   @default(PARTICIPANT)
+  status             UserStatus @default(PENDING)
+  emailVerified      Boolean    @default(false)
+  image              String?
+  realEstateAgency   String?
+  phone              String?
+  birthDate          DateTime?
+  lgpdConsent        Boolean    @default(false)
+  lgpdConsentAt      DateTime?
   lgpdConsentVersion String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   sessions        Session[]
   accounts        Account[]
@@ -112,13 +112,13 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model Account {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   userId       String
   accountId    String
   providerId   String
@@ -129,10 +129,10 @@ model Account {
   idToken      String?
   expiresAt    DateTime?
   password     String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, accountId])
 }
@@ -174,6 +174,7 @@ model Invitation {
   id             String           @id @default(uuid())
   programId      String
   tokenHash      String           @unique
+  tokenEncrypted String?
   status         InvitationStatus @default(AVAILABLE)
   claimedName    String?
   claimedEmail   String?
@@ -235,20 +236,20 @@ model Passport {
 }
 
 model Event {
-  id          String      @id @default(uuid())
-  programId   String
-  name        String
-  description String?
-  location    String?
-  startDate   DateTime
-  endDate     DateTime
-  status      EventStatus @default(DRAFT)
-  orderIndex  Int         @default(0)
-  stampIcon   String      @default("standard")
-  stampColor  String      @default("#cdaa63")
+  id            String      @id @default(uuid())
+  programId     String
+  name          String
+  description   String?
+  location      String?
+  startDate     DateTime
+  endDate       DateTime
+  status        EventStatus @default(DRAFT)
+  orderIndex    Int         @default(0)
+  stampIcon     String      @default("standard")
+  stampColor    String      @default("#cdaa63")
   themeImageUrl String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
   stamps  Stamp[]
@@ -269,13 +270,16 @@ model Stamp {
   cancellationReason String?
   createdAt          DateTime    @default(now())
 
-  passport    Passport  @relation(fields: [passportId], references: [id], onDelete: Restrict)
-  event       Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  attendant   User      @relation("AttendantStamps", fields: [attendantId], references: [id], onDelete: Restrict)
-  cancelledBy User?     @relation("CancelledStamps", fields: [cancelledById], references: [id], onDelete: SetNull)
+  passport    Passport @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  attendant   User     @relation("AttendantStamps", fields: [attendantId], references: [id], onDelete: Restrict)
+  cancelledBy User?    @relation("CancelledStamps", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   // Migration manual aplica o índice único parcial:
-  // CREATE UNIQUE INDEX "Stamp_confirmed_passport_event_key" ON "Stamp" ("passportId", "eventId") WHERE "status" = 'CONFIRMED';
+  // CREATE UNIQUE INDEX "Stamp_confirmed_passport_event_key"
+  // ON "Stamp" ("passportId", "eventId")
+  // WHERE "status" = 'CONFIRMED';
+
   @@index([passportId])
   @@index([eventId])
   @@index([attendantId])

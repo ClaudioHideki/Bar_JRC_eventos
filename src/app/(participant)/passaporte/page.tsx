@@ -61,7 +61,6 @@ export default async function PassportPage() {
       programName={passport.program.name}
       themeImageUrl={passport.program.themeImageUrl || "/brand/passaporte-template.jpg"}
       activeEventThemeUrl={activeEventWithTheme?.themeImageUrl || null}
-      activeEventName={activeEventWithTheme?.name || null}
       events={allEvents.map((e) => ({
         id: e.id,
         name: e.name,
