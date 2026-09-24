@@ -97,6 +97,11 @@ export function hashQrToken(token: string): string {
     .digest("hex");
 }
 
+export function hashPasswordResetToken(token: string): string {
+  const secret = getSecret("BETTER_AUTH_SECRET", "default_better_auth_secret_must_be_32_chars_long");
+  return crypto.createHmac("sha256", secret).update(`password-reset:${token.trim()}`).digest("hex");
+}
+
 export function hashRateLimitKey(key: string): string {
   const secret = getSecret(
     "RATE_LIMIT_SECRET",

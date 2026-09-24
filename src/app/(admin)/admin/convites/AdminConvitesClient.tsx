@@ -10,8 +10,10 @@ interface InvitationItem {
   claimedEmail: string | null;
   phone: string | null;
   inviteLink: string | null;
+  recipientPhoneE164: string | null;
   usedByName: string | null;
   usedByEmail: string | null;
+  usedByPhoneE164: string | null;
   usedAt: string | null;
   createdAt: string;
 }
@@ -44,6 +46,8 @@ export function AdminConvitesClient({
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [bulkResults, setBulkResults] = useState<Array<{ id: string; name: string; phone?: string; kind: string; status: string; detail?: string; whatsappUrl?: string }>>([]);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [clientName, setClientName] = useState("");
@@ -564,6 +568,36 @@ ${clickableLink}`;
     )}`;
   };
 
+  const handleBulkDispatch = async () => {
+    if (!confirm("Preparar a lista personalizada de WhatsApp? Convites pendentes receberão um link adicional; cada mensagem será enviada manualmente.")) return;
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    setBulkResults([]);
+    setBulkProgress(0);
+    try {
+      let cursor: string | null = null;
+      const all: typeof bulkResults = [];
+      do {
+        const response: Response = await fetch("/api/admin/invitations/bulk-send", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "PREPARE", cursor }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Falha no processamento em massa.");
+        all.push(...data.results);
+        setBulkResults([...all]);
+        setBulkProgress(all.length);
+        cursor = data.nextCursor;
+      } while (cursor);
+      const done = all.filter((item) => item.status === "PREPARED").length;
+      setSuccess(`${done} mensagem(ns) preparada(s). Abra cada conversa para enviar pelo WhatsApp.`);
+      router.refresh();
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Falha no processamento em massa.");
+    } finally { setLoading(false); }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -591,6 +625,10 @@ ${clickableLink}`;
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button onClick={handleBulkDispatch} disabled={loading}
+            className="rounded-xl border border-secondary/40 px-4 py-2 text-xs font-bold text-secondary disabled:opacity-50">
+            Preparar lista de WhatsApp
+          </button>
           <button
             onClick={() =>
               setShowInviteForm(
@@ -648,6 +686,17 @@ ${clickableLink}`;
         </div>
       )}
 
+      {loading && bulkProgress > 0 && <p role="status" className="text-xs text-muted">{bulkProgress} destinatários processados...</p>}
+      {bulkResults.length > 0 && <section className="rounded-2xl border border-secondary/30 bg-surface p-4 space-y-2">
+        <h2 className="text-sm font-bold">Lista personalizada de WhatsApp</h2>
+        <div className="max-h-72 space-y-2 overflow-y-auto">{bulkResults.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-muted/10 py-2 text-xs">
+          <span>{item.name} · {item.phone || "Sem número"} · {item.kind === "LOGIN" ? "Acesso" : "Convite"} · {item.status === "PREPARED" ? "Pronto para WhatsApp" : item.status === "SKIPPED" ? "Ignorado" : "Falhou"}</span>
+          {item.detail && <span className="text-danger">{item.detail}</span>}
+          {item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-secondary">Abrir WhatsApp</a>}
+        </div>)}</div>
+      </section>}
+
+      {/* Formulário para Convidar Cliente Específico */}
       {showInviteForm && (
         <form
           onSubmit={handleSendSingleInvite}
@@ -683,8 +732,8 @@ ${clickableLink}`;
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">
-                WhatsApp do Cliente
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+                WhatsApp do Cliente (DDD)
               </label>
 
               <input
@@ -921,7 +970,6 @@ ${clickableLink}`;
                         </span>
                       )}
                     </td>
-
                     <td className="p-4 text-foreground">
                       {isEditing ? (
                         <input
@@ -935,9 +983,9 @@ ${clickableLink}`;
                           placeholder="11999998888"
                           className="h-9 min-w-[150px] rounded-lg border border-muted/30 bg-background px-2 text-xs text-foreground focus:border-primary focus:outline-none"
                         />
-                      ) : inv.phone ? (
+                      ) : inv.usedByPhoneE164 || inv.recipientPhoneE164 || inv.phone ? (
                         <span className="font-semibold text-foreground">
-                          {formatPhone(inv.phone)}
+                          {formatPhone(inv.usedByPhoneE164 || inv.recipientPhoneE164 || inv.phone || "")}
                         </span>
                       ) : (
                         <span className="text-muted/50">
@@ -945,7 +993,6 @@ ${clickableLink}`;
                         </span>
                       )}
                     </td>
-
                     <td className="p-4 text-foreground">
                       {inv.usedByName ? (
                         <div>

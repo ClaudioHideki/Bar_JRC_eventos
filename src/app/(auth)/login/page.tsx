@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
 
 export default function LoginPage() {
@@ -8,6 +9,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loginLogoUrl, setLoginLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/public/branding", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => { if (active) setLoginLogoUrl(data.loginLogoUrl || null); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const redirectAfterLogin = async (userRole?: string) => {
     let role = userRole;
@@ -68,8 +79,8 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
       <div className="w-full max-w-md rounded-3xl border border-primary/20 bg-surface p-8 shadow-2xl shadow-primary/10">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20 text-2xl font-bold tracking-wider text-premium border border-primary/30">
-            JRC
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-2xl font-bold tracking-wider text-premium border border-primary/30">
+            {loginLogoUrl ? <img src={loginLogoUrl} alt="Logo JRC" className="h-full w-full object-contain" /> : "JRC"}
           </div>
 
           <h1 className="mt-4 text-2xl font-black tracking-tight text-foreground">
@@ -206,7 +217,9 @@ export default function LoginPage() {
             {loading ? "Entrando..." : "Entrar no Passaporte"}
           </button>
         </form>
+        <Link href="/recuperar-senha" className="mt-4 block text-center text-xs font-semibold text-premium underline">Esqueci minha senha</Link>
 
+        {/* Aviso de Exclusividade por Convite */}
         <div className="mt-6 pt-5 border-t border-muted/20 text-center space-y-2">
           <p className="text-xs text-muted">
             Primeira vez no Bar JRC?

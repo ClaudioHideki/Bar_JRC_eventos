@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       id: program.id,
       name: program.name,
       themeImageUrl: program.themeImageUrl || "/brand/passaporte-template.jpg",
+      loginLogoUrl: program.loginLogoUrl,
       themeTitle: program.themeTitle || "Passaporte JRC",
       themeSubtitle: program.themeSubtitle || "Setembro de 2027 é seu. Se você estiver lá até o fim.",
     });
@@ -43,7 +44,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { themeImageUrl, themeTitle, themeSubtitle } = body;
+    const { themeImageUrl, themeTitle, themeSubtitle, loginLogoUrl } = body;
+
+    if (loginLogoUrl !== undefined && loginLogoUrl !== null &&
+        (typeof loginLogoUrl !== "string" || loginLogoUrl.length > Math.ceil(1.5 * 1024 * 1024 / 3) * 4 + 64 ||
+          !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(loginLogoUrl))) {
+      return NextResponse.json({ error: "Logo inválida. Envie PNG, JPEG ou WebP de até 1,5 MB." }, { status: 400 });
+    }
 
     const program = await prisma.program.findFirst({
       where: { status: "ACTIVE" },
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest) {
       where: { id: program.id },
       data: {
         themeImageUrl: themeImageUrl || "/brand/passaporte-template.jpg",
+        loginLogoUrl: loginLogoUrl === undefined ? undefined : loginLogoUrl,
         themeTitle: themeTitle || undefined,
         themeSubtitle: themeSubtitle || undefined,
       },
@@ -71,6 +79,7 @@ export async function POST(req: NextRequest) {
       entityId: program.id,
       details: {
         newThemeImageUrl: themeImageUrl,
+        loginLogoUpdated: loginLogoUrl !== undefined,
         themeTitle,
         themeSubtitle,
       },

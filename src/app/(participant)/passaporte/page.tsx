@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { getParticipantPassport, getProgramEvents, getProgramUpcomingEvents } from "@/lib/domain/passport";
 import { PassportClient } from "@/components/passport/PassportClient";
+import { EventReviewsClient } from "@/components/passport/EventReviewsClient";
 import { UserRole } from "@prisma/client";
 
 export default async function PassportPage() {
@@ -52,6 +53,7 @@ export default async function PassportPage() {
     allEvents.find((e) => e.status === "ACTIVE" && e.themeImageUrl);
 
   return (
+    <>
     <PassportClient
       userName={user?.name || session.user.name}
       userEmail={user?.email || session.user.email}
@@ -88,5 +90,12 @@ export default async function PassportPage() {
         themeImageUrl: e.themeImageUrl,
       }))}
     />
+    <div className="mx-auto -mt-10 max-w-xl px-4 pb-16">
+      <EventReviewsClient
+        events={passport.stamps.map((s) => ({ id: s.eventId, name: s.event.name, stampedAt: s.stampedAt.toISOString() }))}
+        reviewedEventIds={passport.reviews.map((review) => review.eventId)}
+      />
+    </div>
+    </>
   );
 }

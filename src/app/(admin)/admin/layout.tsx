@@ -27,6 +27,7 @@ export default async function AdminLayout({
     { href: "/admin/participantes", label: "Participantes" },
     { href: "/admin/ranking", label: "Ranking" },
     { href: "/admin/carimbos", label: "Carimbos" },
+    { href: "/admin/avaliacoes", label: "Avaliações" },
     { href: "/admin/auditoria", label: "Auditoria" },
   ];
 

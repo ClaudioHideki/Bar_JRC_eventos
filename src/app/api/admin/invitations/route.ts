@@ -17,6 +17,7 @@ import {
 } from "@/lib/security/crypto";
 import nodemailer from "nodemailer";
 import { createAuditLog } from "@/lib/domain/audit";
+import { hasLegacyPhoneMatch, normalizeBrazilianMobile } from "@/lib/security/phone";
 
 function getBaseUrl(req: NextRequest): string {
   return (
@@ -190,6 +191,9 @@ export async function POST(req: NextRequest) {
         typeof body.phone === "string"
           ? body.phone.trim()
           : "";
+      const recipientPhoneE164 = recipientPhone
+        ? normalizeBrazilianMobile(recipientPhone)
+        : null;
 
       const program =
         await getOrCreateDefaultProgram();
@@ -237,6 +241,22 @@ export async function POST(req: NextRequest) {
             const capacity =
               lockedProgram[0].capacity;
 
+            if (recipientPhoneE164) {
+              const registered = await tx.user.findUnique({ where: { phoneE164: recipientPhoneE164 } });
+              if (registered) throw new Error("Este WhatsApp já possui cadastro no Passaporte JRC.");
+              const legacyUsers = await tx.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
+              if (hasLegacyPhoneMatch(recipientPhoneE164, legacyUsers)) throw new Error("Este WhatsApp já possui cadastro no Passaporte JRC.");
+              const activeInvitation = await tx.invitation.findFirst({
+                where: { recipientPhoneE164, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+              });
+              if (activeInvitation) throw new Error("Este WhatsApp já possui um convite ativo.");
+              const legacyInvitations = await tx.invitation.findMany({
+                where: { phone: { not: null }, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+                select: { id: true, phone: true },
+              });
+              if (hasLegacyPhoneMatch(recipientPhoneE164, legacyInvitations)) throw new Error("Este WhatsApp já possui um convite ativo.");
+            }
+
             const activeCount =
               await tx.invitation.count({
                 where: {
@@ -277,6 +297,7 @@ export async function POST(req: NextRequest) {
                 phone:
                   recipientPhone ||
                   null,
+                recipientPhoneE164,
                 createdById:
                   session.user.id,
                 sentAt:

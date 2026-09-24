@@ -37,6 +37,7 @@ export default async function AdminConvitesPage() {
           id: true,
           name: true,
           email: true,
+          phoneE164: true,
         },
       },
     },
@@ -55,8 +56,10 @@ export default async function AdminConvitesPage() {
         claimedEmail: i.claimedEmail,
         phone: i.phone,
         inviteLink: recoverInviteLink(i.tokenEncrypted),
+        recipientPhoneE164: i.recipientPhoneE164,
         usedByName: i.usedBy?.name || null,
         usedByEmail: i.usedBy?.email || null,
+        usedByPhoneE164: i.usedBy?.phoneE164 || null,
         usedAt: i.usedAt ? i.usedAt.toISOString() : null,
         createdAt: i.createdAt.toISOString(),
       }))}

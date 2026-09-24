@@ -116,6 +116,8 @@ O comando valida que nenhum outro administrador existe, registra log de auditori
 
 ## 📚 Documentação Técnica Adicional
 
+- [Melhorias de UX e operação](docs/UX_MELHORIAS_2026.md)
+
 - [Arquitetura e Fluxos do Sistema](docs/ARCHITECTURE.md)
 - [Modelo de Dados e Dicionário](docs/DATABASE.md)
 - [Políticas de Segurança e Criptografia](docs/SECURITY.md)

@@ -16,6 +16,7 @@ export function ConviteClient({
 }) {
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail);
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [realEstateAgency, setRealEstateAgency] = useState("");
@@ -73,7 +74,8 @@ export function ConviteClient({
           token: token.trim(),
           name: name.trim(),
           email: email.trim(),
-          password,
+          phone: phone.trim(),
+          password: password.trim(),
           realEstateAgency: realEstateAgency.trim(),
           lgpdConsent: true,
         }),
@@ -302,13 +304,20 @@ export function ConviteClient({
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1"
-            >
-              Senha de Acesso *
-            </label>
+            <label htmlFor="phone" className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">WhatsApp com DDD *</label>
+            <input id="phone" type="tel" inputMode="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
+              placeholder="(11) 98765-4321" className="h-11 w-full rounded-xl border border-muted/30 bg-background px-4 text-sm text-foreground" />
+          </div>
 
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                Senha de Acesso *
+              </label>
+              <span className="text-[10px] text-premium font-medium">
+                💡 Sugestão: Data de Nascimento
+              </span>
+            </div>
             <input
               id="password"
               type="password"

@@ -8,6 +8,7 @@ interface ParticipantItem {
   name: string;
   email: string;
   phone: string | null;
+  phoneE164: string | null;
   image: string | null;
   realEstateAgency: string | null;
   passportId: string;
@@ -28,6 +29,7 @@ export function AdminParticipantesClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [recoveryLink, setRecoveryLink] = useState<{ userId: string; url: string } | null>(null);
 
   useEffect(() => {
     setParticipants(initialParticipants);
@@ -65,6 +67,43 @@ export function AdminParticipantesClient({
     }
   };
 
+  const handleEditPhone = async (p: ParticipantItem) => {
+    const phone = prompt(`WhatsApp de ${p.name} com DDD:`, p.phoneE164 || p.phone || "");
+    if (phone === null) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/participants", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: p.id, phone }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Erro ao salvar WhatsApp.");
+      setSuccess("WhatsApp atualizado.");
+      router.refresh();
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Erro ao salvar WhatsApp.");
+    } finally { setLoading(false); }
+  };
+
+  const handlePrepareRecovery = async (p: ParticipantItem) => {
+    setLoading(true);
+    setError(null);
+    setRecoveryLink(null);
+    try {
+      const response = await fetch("/api/admin/participants/password-recovery", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: p.id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Erro ao preparar recuperação.");
+      setRecoveryLink({ userId: p.id, url: body.whatsappUrl });
+      setSuccess(`Link de recuperação de ${p.name} preparado. Abra a conversa e confirme o envio.`);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Erro ao preparar recuperação.");
+    } finally { setLoading(false); }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -99,7 +138,7 @@ export function AdminParticipantesClient({
                 <th className="p-4">Participante</th>
                 <th className="p-4">Imobiliária</th>
                 <th className="p-4">E-mail</th>
-                <th className="p-4">Telefone</th>
+                <th className="p-4">WhatsApp</th>
                 <th className="p-4">Passaporte</th>
                 <th className="p-4">Carimbos (de 12)</th>
                 <th className="p-4">Termo LGPD</th>
@@ -139,7 +178,7 @@ export function AdminParticipantesClient({
                       )}
                     </td>
                     <td className="p-4 text-muted">{p.email}</td>
-                    <td className="p-4 text-muted">{p.phone || "—"}</td>
+                    <td className="p-4 text-muted">{p.phoneE164 || p.phone || "Não informado"}</td>
                     <td className="p-4 font-mono font-bold text-secondary">{p.passportNumber}</td>
                     <td className="p-4 font-bold text-success">
                       {p.stampsCount} / 12
@@ -163,6 +202,12 @@ export function AdminParticipantesClient({
                       })}
                     </td>
                     <td className="p-4 text-right">
+                      <button onClick={() => handlePrepareRecovery(p)} disabled={loading}
+                        className="mr-2 rounded-lg border border-secondary/30 px-2.5 py-1 text-[11px] font-semibold text-secondary">Recuperar senha</button>
+                      {recoveryLink?.userId === p.id && <a href={recoveryLink.url} target="_blank" rel="noopener noreferrer"
+                        className="mr-2 inline-block rounded-lg border border-secondary/30 px-2.5 py-1 text-[11px] font-semibold text-secondary">Abrir WhatsApp</a>}
+                      <button onClick={() => handleEditPhone(p)} disabled={loading}
+                        className="mr-2 rounded-lg border border-primary/30 px-2.5 py-1 text-[11px] font-semibold text-primary">WhatsApp</button>
                       <button
                         onClick={() => handleDeleteParticipant(p)}
                         disabled={loading}

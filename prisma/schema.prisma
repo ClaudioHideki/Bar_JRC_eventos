@@ -82,6 +82,7 @@ model User {
   image              String?
   realEstateAgency   String?
   phone              String?
+  phoneE164          String?    @unique
   birthDate          DateTime?
   lgpdConsent        Boolean    @default(false)
   lgpdConsentAt      DateTime?
@@ -97,6 +98,7 @@ model User {
   createdInvites  Invitation[] @relation("CreatedInvitations")
   usedInvite      Invitation?  @relation("UsedInvitation")
   cancelledStamps Stamp[]      @relation("CancelledStamps")
+  passwordResets   PasswordResetRequest[]
 
   @@index([email])
   @@index([role, status])
@@ -159,6 +161,7 @@ model Program {
   capacity      Int           @default(999999)
   status        ProgramStatus @default(ACTIVE)
   themeImageUrl String?
+  loginLogoUrl  String?
   themeTitle    String?
   themeSubtitle String?
   createdAt     DateTime      @default(now())
@@ -179,6 +182,7 @@ model Invitation {
   claimedName    String?
   claimedEmail   String?
   phone          String?
+  recipientPhoneE164 String?
   usedById       String?          @unique
   createdById    String?
   sentAt         DateTime?
@@ -192,6 +196,7 @@ model Invitation {
   usedBy        User?                 @relation("UsedInvitation", fields: [usedById], references: [id], onDelete: Restrict)
   createdBy     User?                 @relation("CreatedInvitations", fields: [createdById], references: [id], onDelete: SetNull)
   registrations PendingRegistration[]
+  deliveryTokens InvitationDeliveryToken[]
 
   @@index([tokenHash])
   @@index([programId, status])
@@ -202,6 +207,7 @@ model PendingRegistration {
   programId       String
   invitationId    String
   normalizedEmail String
+  phoneE164       String?
   name            String
   status          RegistrationStatus @default(PENDING)
   expiresAt       DateTime
@@ -230,6 +236,7 @@ model Passport {
   user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
   stamps       Stamp[]
   qrChallenges QrChallenge[]
+  reviews      EventReview[]
 
   @@index([passportNumber])
   @@index([programId])
@@ -253,6 +260,7 @@ model Event {
 
   program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
   stamps  Stamp[]
+  reviews EventReview[]
 
   @@index([programId, status])
   @@index([orderIndex])
@@ -300,6 +308,45 @@ model QrChallenge {
   @@index([tokenHash])
   @@index([passportId, status])
   @@index([expiresAt])
+}
+
+model InvitationDeliveryToken {
+  id           String     @id @default(uuid())
+  invitationId String
+  tokenHash    String     @unique
+  createdAt    DateTime   @default(now())
+  invitation   Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId])
+}
+
+model EventReview {
+  id          String   @id @default(uuid())
+  passportId  String
+  eventId     String
+  rating      Int
+  feedback    String?
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  passport Passport @relation(fields: [passportId], references: [id], onDelete: Cascade)
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([passportId, eventId])
+  @@index([eventId, submittedAt])
+}
+
+model PasswordResetRequest {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model AuditLog {

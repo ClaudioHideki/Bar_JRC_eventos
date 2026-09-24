@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { auth } from "../../src/lib/auth/auth";
 
-const testDbUrl =
+const testDbUrl = process.env.DATABASE_URL ||
   "postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public";
 
 process.env.DATABASE_URL = testDbUrl;

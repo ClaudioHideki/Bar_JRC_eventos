@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "../db/prisma";
 import { normalizeEmail, getSecret, generateSecureToken } from "../security/crypto";
 import { UserRole, UserStatus, PassportStatus } from "@prisma/client";
+import { getInvitationContext } from "./invitation-context";
 
 export const auth = betterAuth({
   secret: getSecret("BETTER_AUTH_SECRET", "default_better_auth_secret_must_be_32_chars_long"),
@@ -34,6 +35,11 @@ export const auth = betterAuth({
         input: false,
       },
       realEstateAgency: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      phoneE164: {
         type: "string",
         required: false,
         input: true,
@@ -74,10 +80,18 @@ export const auth = betterAuth({
           // REGRA INEGOCIÁVEL (AGENTS.md 1.5): Cadastro exclusivamente invite-only.
           // Qualquer cadastro de participante sem convite válido ativo associado deve falhar no nível mais baixo.
           if (user.role === UserRole.PARTICIPANT) {
+            const context = getInvitationContext();
+            if (!context || context.email !== normalized || context.phoneE164 !== user.phoneE164) {
+              throw new Error("Cadastro permitido exclusivamente pela ativação de convite.");
+            }
             const pendingReg = await prisma.pendingRegistration.findFirst({
               where: {
                 normalizedEmail: normalized,
+                invitationId: context.invitationId,
+                phoneE164: context.phoneE164,
+                status: "VERIFIED",
                 expiresAt: { gt: new Date() },
+                invitation: { status: { in: ["AVAILABLE", "SENT"] } },
               },
             });
             if (!pendingReg) {

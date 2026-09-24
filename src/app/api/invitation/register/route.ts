@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
-import { hashInvitationToken, normalizeEmail } from "@/lib/security/crypto";
+import { normalizeEmail } from "@/lib/security/crypto";
 import { createAuditLog } from "@/lib/domain/audit";
 import { checkRateLimit } from "@/lib/rate-limit/postgres-rate-limit";
 import { InvitationStatus, RegistrationStatus } from "@prisma/client";
+import { hasLegacyPhoneMatch, normalizeBrazilianMobile } from "@/lib/security/phone";
+import { getInvitationByToken } from "@/lib/domain/invitations";
+import { withInvitationContext } from "@/lib/auth/invitation-context";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      token,
-      name,
-      email,
-      password,
-      realEstateAgency,
-      birthDate,
-      lgpdConsent,
-    } = body;
+    const { token, name, email, phone, password, realEstateAgency, birthDate, lgpdConsent } = body;
 
     // 1. Validações de Entrada
     if (!token || typeof token !== "string") {
@@ -42,59 +37,40 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = normalizeEmail(email);
+    const phoneE164 = normalizeBrazilianMobile(phone || "");
 
-    if (
-      !password ||
-      typeof password !== "string" ||
-      password.length < 4
-    ) {
+    if (!password || typeof password !== "string" || password.trim().length < 4) {
       return NextResponse.json(
-        { error: "A senha deve ter pelo menos 4 caracteres." },
+        { error: "A senha ou data de nascimento deve ter pelo menos 4 caracteres." },
         { status: 400 }
       );
     }
 
-    if (
-      !realEstateAgency ||
-      typeof realEstateAgency !== "string" ||
-      realEstateAgency.trim().length < 2
-    ) {
+    if (!realEstateAgency || typeof realEstateAgency !== "string" || realEstateAgency.trim().length < 2) {
       return NextResponse.json(
-        {
-          error:
-            "Por favor, informe a sua imobiliária ou empresa parceira.",
-        },
+        { error: "Por favor, informe a sua imobiliária ou empresa parceira." },
         { status: 400 }
       );
     }
 
     if (!lgpdConsent) {
       return NextResponse.json(
-        {
-          error:
-            "É obrigatório aceitar o Termo de Consentimento (LGPD) e o Regulamento da Campanha.",
-        },
+        { error: "É obrigatório aceitar o Termo de Consentimento (LGPD) e o Regulamento da Campanha." },
         { status: 400 }
       );
     }
 
     // 2. Rate Limiting por IP e por E-mail
-    const clientIp =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "127.0.0.1";
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
     const ipLimit = await checkRateLimit({
       key: `invite-reg-ip:${clientIp}`,
       limit: 5,
       windowSeconds: 300,
     });
-
     if (!ipLimit.allowed) {
       return NextResponse.json(
-        {
-          error:
-            "Muitas solicitações deste dispositivo. Aguarde alguns minutos.",
-        },
+        { error: "Muitas solicitações deste dispositivo. Aguarde alguns minutos." },
         { status: 429 }
       );
     }
@@ -104,13 +80,9 @@ export async function POST(req: NextRequest) {
       limit: 3,
       windowSeconds: 300,
     });
-
     if (!emailLimit.allowed) {
       return NextResponse.json(
-        {
-          error:
-            "Muitas tentativas para este e-mail. Aguarde alguns minutos.",
-        },
+        { error: "Muitas tentativas para este e-mail. Aguarde alguns minutos." },
         { status: 429 }
       );
     }
@@ -123,67 +95,47 @@ export async function POST(req: NextRequest) {
 
     if (existingUser && existingUser.passports.length > 0) {
       return NextResponse.json(
-        {
-          error:
-            "Este e-mail já possui um passaporte ativo no programa. Acesse a tela de login para entrar.",
-        },
+        { error: "Este e-mail já possui um passaporte ativo no programa. Acesse a tela de login para entrar." },
         { status: 409 }
       );
     }
 
-    // 4. Verificação rápida prévia do convite
-    const tokenHash = hashInvitationToken(token.trim());
+    const existingPhone = await prisma.user.findUnique({ where: { phoneE164 } });
+    if (existingPhone) {
+      return NextResponse.json({ error: "Este WhatsApp já possui cadastro. Entre pela tela de login." }, { status: 409 });
+    }
+    const legacyUsers = await prisma.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
+    if (hasLegacyPhoneMatch(phoneE164, legacyUsers)) {
+      return NextResponse.json({ error: "Este WhatsApp já possui cadastro. Entre pela tela de login." }, { status: 409 });
+    }
 
-    const checkInv = await prisma.invitation.findFirst({
-      where: { tokenHash },
-      select: {
-        id: true,
-        status: true,
-        programId: true,
-        claimedEmail: true,
-        phone: true,
-      },
-    });
+    // 4. Verificação rápida prévia do convite (sem travar pool)
+    const checkInv = await getInvitationByToken(token.trim());
 
     if (!checkInv) {
       return NextResponse.json(
-        {
-          error:
-            "Este link de convite é inválido ou já foi excluído no painel administrativo. Por favor, solicite um novo convite ao administrador.",
-        },
+        { error: "Este link de convite é inválido ou já foi excluído no painel administrativo. Por favor, solicite um novo convite ao administrador." },
         { status: 400 }
       );
     }
 
-    if (
-      checkInv.status !== InvitationStatus.AVAILABLE &&
-      checkInv.status !== InvitationStatus.SENT
-    ) {
+    if (checkInv.expiresAt && checkInv.expiresAt <= new Date()) {
+      return NextResponse.json({ error: "Este link de convite expirou. Solicite um novo link ao administrador." }, { status: 400 });
+    }
+
+    if (checkInv.status !== InvitationStatus.AVAILABLE && checkInv.status !== InvitationStatus.SENT) {
       return NextResponse.json(
-        {
-          error:
-            "Este convite já foi utilizado para ativar outro passaporte ou foi cancelado.",
-        },
+        { error: "Este convite já foi utilizado para ativar outro passaporte ou foi cancelado." },
         { status: 400 }
       );
     }
 
-    // 5. Transação com bloqueio pessimista
+    // Transação com bloqueio pessimista (SELECT ... FOR UPDATE) - AGENTS.md 2.1
     const txResult = await prisma.$transaction(
       async (tx) => {
-        const lockedInv = await tx.$queryRaw<
-          Array<{
-            id: string;
-            status: string;
-            programId: string;
-            claimedEmail: string | null;
-            phone: string | null;
-          }>
-        >`
-          SELECT "id", "status", "programId", "claimedEmail", "phone"
-          FROM "Invitation"
-          WHERE "tokenHash" = ${tokenHash}
-          FOR UPDATE
+        // Lock do convite
+        const lockedInv = await tx.$queryRaw<Array<{ id: string; status: string; programId: string; claimedEmail: string | null }>>`
+          SELECT "id", "status", "programId", "claimedEmail" FROM "Invitation" WHERE "id" = ${checkInv.id} FOR UPDATE
         `;
 
         if (!lockedInv || lockedInv.length === 0) {
@@ -192,127 +144,134 @@ export async function POST(req: NextRequest) {
 
         const inv = lockedInv[0];
 
-        if (
-          inv.status !== InvitationStatus.AVAILABLE &&
-          inv.status !== InvitationStatus.SENT
-        ) {
-          throw new Error(
-            "Este convite já foi utilizado ou não está mais ativo."
-          );
+        if (inv.status !== InvitationStatus.AVAILABLE && inv.status !== InvitationStatus.SENT) {
+          throw new Error("Este convite já foi utilizado ou não está mais ativo.");
         }
 
-        if (
-          inv.claimedEmail &&
-          inv.claimedEmail.toLowerCase() !== cleanEmail
-        ) {
-          throw new Error(
-            `Este convite foi emitido exclusivamente para o e-mail ${inv.claimedEmail}.`
-          );
+      // Se o convite foi emitido nominalmente para um e-mail específico, confere
+      if (inv.claimedEmail && inv.claimedEmail.toLowerCase() !== cleanEmail) {
+        throw new Error(`Este convite foi emitido exclusivamente para o e-mail ${inv.claimedEmail}.`);
+      }
+
+      const invitePhone = await tx.invitation.findUnique({ where: { id: inv.id }, select: { recipientPhoneE164: true, phone: true, expiresAt: true } });
+      if (invitePhone?.expiresAt && invitePhone.expiresAt <= new Date()) {
+        throw new Error("Este link de convite expirou. Solicite um novo link ao administrador.");
+      }
+      if (invitePhone?.phone && !invitePhone.recipientPhoneE164) {
+        let registeredInvitePhone: string;
+        try {
+          registeredInvitePhone = normalizeBrazilianMobile(invitePhone.phone);
+        } catch {
+          throw new Error("O WhatsApp deste convite precisa ser corrigido pelo administrador.");
         }
-
-        const lockedProgram = await tx.$queryRaw<
-          Array<{ id: string; capacity: number }>
-        >`
-          SELECT "id", "capacity"
-          FROM "Program"
-          WHERE "id" = ${inv.programId}
-          FOR UPDATE
-        `;
-
-        if (!lockedProgram || lockedProgram.length === 0) {
-          throw new Error("Programa de fidelidade não encontrado.");
+        if (registeredInvitePhone !== phoneE164) {
+          throw new Error("Este convite foi emitido para outro número de WhatsApp.");
         }
+      }
+      if (invitePhone?.recipientPhoneE164 && invitePhone.recipientPhoneE164 !== phoneE164) {
+        throw new Error("Este convite foi emitido para outro número de WhatsApp.");
+      }
+      const otherPhone = await tx.invitation.findFirst({
+        where: { id: { not: inv.id }, recipientPhoneE164: phoneE164, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+      });
+      if (otherPhone) throw new Error("Este WhatsApp já está vinculado a outro convite.");
+      const legacyInvitations = await tx.invitation.findMany({
+        where: { id: { not: inv.id }, phone: { not: null }, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+        select: { id: true, phone: true },
+      });
+      if (hasLegacyPhoneMatch(phoneE164, legacyInvitations)) throw new Error("Este WhatsApp já está vinculado a outro convite.");
 
-        const capacity = lockedProgram[0].capacity;
+      // Lock do Programa para checagem estrita da capacidade máxima (30) - AGENTS.md 2.1
+      const lockedProgram = await tx.$queryRaw<Array<{ id: string; capacity: number }>>`
+        SELECT "id", "capacity" FROM "Program" WHERE "id" = ${inv.programId} FOR UPDATE
+      `;
 
-        const usedCount = await tx.invitation.count({
-          where: {
-            programId: inv.programId,
-            status: InvitationStatus.USED,
-          },
-        });
+      if (!lockedProgram || lockedProgram.length === 0) {
+        throw new Error("Programa de fidelidade não encontrado.");
+      }
 
-        if (usedCount >= capacity) {
-          throw new Error(
-            `Limite de capacidade atingido (${capacity} participantes). Não há mais vagas disponíveis.`
-          );
-        }
+      const capacity = lockedProgram[0].capacity;
 
-        // PendingRegistration autoriza criação do participante no hook do Better Auth
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-        const pendingReg = await tx.pendingRegistration.upsert({
-          where: { id: `reg_${inv.id}` },
-          create: {
-            id: `reg_${inv.id}`,
-            programId: inv.programId,
-            invitationId: inv.id,
-            normalizedEmail: cleanEmail,
-            name: name.trim(),
-            status: RegistrationStatus.VERIFIED,
-            expiresAt,
-          },
-          update: {
-            normalizedEmail: cleanEmail,
-            name: name.trim(),
-            status: RegistrationStatus.VERIFIED,
-            expiresAt,
-          },
-        });
-
-        return {
-          invitationId: inv.id,
+      const usedCount = await tx.invitation.count({
+        where: {
           programId: inv.programId,
-          pendingRegId: pendingReg.id,
-        };
-      },
-      { maxWait: 15000, timeout: 30000 }
-    );
+          status: InvitationStatus.USED,
+        },
+      });
 
-    // 6. Cria usuário via Better Auth
+      if (usedCount >= capacity) {
+        throw new Error(`Limite de capacidade atingido (${capacity} participantes). Não há mais vagas disponíveis.`);
+      }
+
+      // Cria/atualiza o PendingRegistration para autorizar a criação no hook do Better Auth
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+      const pendingReg = await tx.pendingRegistration.upsert({
+        where: { id: `reg_${inv.id}` },
+        create: {
+          id: `reg_${inv.id}`,
+          programId: inv.programId,
+          invitationId: inv.id,
+          normalizedEmail: cleanEmail,
+          phoneE164,
+          name: name.trim(),
+          status: RegistrationStatus.VERIFIED,
+          expiresAt,
+        },
+        update: {
+          normalizedEmail: cleanEmail,
+          phoneE164,
+          name: name.trim(),
+          status: RegistrationStatus.VERIFIED,
+          expiresAt,
+        },
+      });
+
+      return {
+        invitationId: inv.id,
+        programId: inv.programId,
+        pendingRegId: pendingReg.id,
+      };
+    },
+    { maxWait: 15000, timeout: 30000 }
+  );
+
+    // 5. Cria o usuário via Better Auth (dispara os databaseHooks)
+    // Limpa cookies prévios do chamador para evitar conflito de sessão (ex: admin logado testando no mesmo navegador)
     const cleanHeaders = new Headers();
-
     req.headers.forEach((value, key) => {
       if (key.toLowerCase() !== "cookie") {
         cleanHeaders.set(key, value);
       }
     });
 
-    const signUpRes = await auth.api.signUpEmail({
+    const signUpRes = await withInvitationContext({ invitationId: txResult.invitationId, email: cleanEmail, phoneE164 }, () => auth.api.signUpEmail({
       body: {
         name: name.trim(),
         email: cleanEmail,
-        password,
+        password: password.trim(),
         realEstateAgency: realEstateAgency.trim(),
+        phoneE164,
         birthDate: birthDate ? new Date(birthDate) : undefined,
         lgpdConsent: true,
       },
       headers: cleanHeaders,
       asResponse: true,
-    });
+    }));
 
     if (!signUpRes.ok) {
       const errData = await signUpRes.json().catch(() => ({}));
-
-      throw new Error(
-        errData.message ||
-          errData.error ||
-          "Falha ao criar conta de acesso."
-      );
+      throw new Error(errData.message || errData.error || "Falha ao criar conta de acesso.");
     }
 
-    // 7. Finaliza a ativação do convite
+    // 6. Finaliza a ativação do convite
     const newUser = await prisma.user.findUnique({
       where: { email: cleanEmail },
       include: { passports: true },
     });
 
     if (newUser) {
-      await prisma.user.update({
-        where: { id: newUser.id },
-        data: { phone: checkInv.phone || null },
-      });
-
+      await prisma.user.update({ where: { id: newUser.id }, data: { phone: phoneE164 } });
+      // Marca convite como USED
       await prisma.invitation.update({
         where: { id: txResult.invitationId },
         data: {
@@ -321,9 +280,11 @@ export async function POST(req: NextRequest) {
           usedAt: new Date(),
           claimedName: name.trim(),
           claimedEmail: cleanEmail,
+          recipientPhoneE164: phoneE164,
         },
       });
 
+      // Conclui pendingRegistration
       await prisma.pendingRegistration.update({
         where: { id: txResult.pendingRegId },
         data: {
@@ -332,23 +293,23 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Registra auditoria da ativação
       await createAuditLog({
         actorUserId: newUser.id,
         actorRole: "PARTICIPANT",
         action: "INVITATION_ACTIVATED",
         entity: "Passport",
-        entityId:
-          newUser.passports[0]?.id || txResult.invitationId,
+        entityId: newUser.passports[0]?.id || txResult.invitationId,
         ipAddress: clientIp,
         userAgent: req.headers.get("user-agent") || undefined,
         details: {
           invitationId: txResult.invitationId,
-          passportNumber:
-            newUser.passports[0]?.passportNumber,
+          passportNumber: newUser.passports[0]?.passportNumber,
           realEstateAgency: realEstateAgency.trim(),
         },
       });
 
+      // Registra auditoria do consentimento LGPD
       await createAuditLog({
         actorUserId: newUser.id,
         actorRole: "PARTICIPANT",
@@ -366,39 +327,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const signUpData = await signUpRes
-      .json()
-      .catch(() => ({}));
+    const signUpData = await signUpRes.json().catch(() => ({}));
 
-    // signUpData vem primeiro para não sobrescrever o user/passportNumber
     const response = NextResponse.json(
       {
-        ...signUpData,
         success: true,
         message: "Passaporte ativado com sucesso!",
+        ...signUpData,
         user: {
           id: newUser?.id,
           name: newUser?.name,
           email: newUser?.email,
-          passportNumber:
-            newUser?.passports[0]?.passportNumber,
+          passportNumber: newUser?.passports[0]?.passportNumber,
         },
       },
       { status: 200 }
     );
 
-    // Repassa os cookies da nova sessão do participante
-    const setCookieHeaders =
-      signUpRes.headers.getSetCookie?.() || [];
-
+    // Repassa os cookies da nova sessão do participante para o navegador
+    const setCookieHeaders = signUpRes.headers.getSetCookie?.() || [];
     if (setCookieHeaders.length > 0) {
       for (const cookie of setCookieHeaders) {
         response.headers.append("set-cookie", cookie);
       }
     } else {
-      const setCookie =
-        signUpRes.headers.get("set-cookie");
-
+      const setCookie = signUpRes.headers.get("set-cookie");
       if (setCookie) {
         response.headers.set("set-cookie", setCookie);
       }
@@ -406,20 +359,10 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    const rawMessage =
-      err instanceof Error
-        ? err.message
-        : "Erro ao processar ativação do convite.";
-
-    const message = rawMessage.includes(
-      "Unable to start a transaction"
-    )
+    const rawMessage = err instanceof Error ? err.message : "Erro ao processar ativação do convite.";
+    const message = rawMessage.includes("Unable to start a transaction")
       ? "O banco de dados estava ocupado no momento. Por favor, tente clicar novamente para ativar."
       : rawMessage;
-
-    return NextResponse.json(
-      { error: message },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

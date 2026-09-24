@@ -3,6 +3,38 @@ import { getServerSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/domain/audit";
 import { UserRole, InvitationStatus } from "@prisma/client";
+import { hasLegacyPhoneMatch, normalizeBrazilianMobile } from "@/lib/security/phone";
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(req);
+  if (!session || session.user.role !== UserRole.ADMIN) {
+    return NextResponse.json({ error: "Acesso restrito a administradores." }, { status: 403 });
+  }
+  try {
+    const { userId, phone } = await req.json();
+    if (typeof userId !== "string" || typeof phone !== "string") {
+      return NextResponse.json({ error: "Participante e WhatsApp são obrigatórios." }, { status: 400 });
+    }
+    const phoneE164 = normalizeBrazilianMobile(phone);
+    const existing = await prisma.user.findUnique({ where: { phoneE164 }, select: { id: true } });
+    if (existing && existing.id !== userId) {
+      return NextResponse.json({ error: "Este WhatsApp já pertence a outro participante." }, { status: 409 });
+    }
+    const legacyUsers = await prisma.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
+    if (hasLegacyPhoneMatch(phoneE164, legacyUsers, userId)) {
+      return NextResponse.json({ error: "Este WhatsApp já pertence a outro participante." }, { status: 409 });
+    }
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id: userId, role: UserRole.PARTICIPANT }, data: { phoneE164, phone: phoneE164 } });
+      await tx.invitation.updateMany({ where: { usedById: userId }, data: { recipientPhoneE164: phoneE164 } });
+      await createAuditLog({ actorUserId: session.user.id, actorRole: "ADMIN", action: "PARTICIPANT_PHONE_UPDATED", entity: "User", entityId: userId, tx });
+      return updated;
+    });
+    return NextResponse.json({ phoneE164: user.phoneE164 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro ao atualizar WhatsApp." }, { status: 400 });
+  }
+}
 
 export async function DELETE(req: NextRequest) {
   try {

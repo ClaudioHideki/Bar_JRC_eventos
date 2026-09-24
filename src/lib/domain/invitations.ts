@@ -6,6 +6,7 @@ import {
   normalizeEmail,
 } from "../security/crypto";
 import { createAuditLog } from "./audit";
+import { hasLegacyPhoneMatch, normalizeBrazilianMobile } from "../security/phone";
 import {
   InvitationStatus,
   ProgramStatus,
@@ -226,6 +227,25 @@ export async function markInvitationAsSent({
     );
   }
 
+  const recipientPhoneE164 = recipientPhone?.trim() ? normalizeBrazilianMobile(recipientPhone) : null;
+  if (recipientPhoneE164) {
+    const existingUser = await prisma.user.findUnique({ where: { phoneE164: recipientPhoneE164 }, select: { id: true } });
+    const legacyUsers = await prisma.user.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
+    if (existingUser || hasLegacyPhoneMatch(recipientPhoneE164, legacyUsers)) {
+      throw new Error("Este WhatsApp já possui cadastro no Passaporte JRC.");
+    }
+    const existingInvitation = await prisma.invitation.findFirst({
+      where: { id: { not: invitationId }, recipientPhoneE164, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+    });
+    const legacyInvitations = await prisma.invitation.findMany({
+      where: { id: { not: invitationId }, phone: { not: null }, status: { in: ["AVAILABLE", "SENT", "USED"] } },
+      select: { id: true, phone: true },
+    });
+    if (existingInvitation || hasLegacyPhoneMatch(recipientPhoneE164, legacyInvitations)) {
+      throw new Error("Este WhatsApp já possui um convite ativo.");
+    }
+  }
+
   return await prisma.invitation.update({
     where: {
       id: invitationId,
@@ -240,6 +260,7 @@ export async function markInvitationAsSent({
         recipientName?.trim() || null,
       phone:
         recipientPhone?.trim() || null,
+      recipientPhoneE164,
     },
   });
 }
@@ -248,13 +269,14 @@ export async function getInvitationByToken(
   rawToken: string
 ) {
   const tokenHash = hashInvitationToken(rawToken);
-
-  return await prisma.invitation.findUnique({
-    where: {
-      tokenHash,
-    },
-    include: {
-      program: true,
-    },
+  const primary = await prisma.invitation.findUnique({
+    where: { tokenHash },
+    include: { program: true },
   });
+  if (primary) return primary;
+  const delivery = await prisma.invitationDeliveryToken.findUnique({
+    where: { tokenHash },
+    include: { invitation: { include: { program: true } } },
+  });
+  return delivery?.invitation ?? null;
 }

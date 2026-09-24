@@ -13,6 +13,7 @@ export async function getParticipantPassport(userId: string) {
         },
         orderBy: { stampedAt: "desc" },
       },
+      reviews: { select: { eventId: true } },
     },
   });
 }

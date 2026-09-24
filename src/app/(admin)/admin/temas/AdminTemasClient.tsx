@@ -13,6 +13,7 @@ interface EventThemeItem {
 interface AdminTemasClientProps {
   initialTheme: {
     themeImageUrl: string;
+    loginLogoUrl: string | null;
     themeTitle: string;
     themeSubtitle: string;
   };
@@ -21,6 +22,7 @@ interface AdminTemasClientProps {
 
 export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClientProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<EventThemeItem[]>(initialEvents);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
 
   // Estado do Tema do Programa
   const [programImageUrl, setProgramImageUrl] = useState(initialTheme.themeImageUrl || "/brand/passaporte-template.jpg");
+  const [loginLogoUrl, setLoginLogoUrl] = useState<string | null>(initialTheme.loginLogoUrl);
   const [themeTitle, setThemeTitle] = useState(initialTheme.themeTitle || "Passaporte JRC");
   const [themeSubtitle, setThemeSubtitle] = useState(initialTheme.themeSubtitle || "Setembro de 2027 é seu. Se você estiver lá até o fim.");
 
@@ -81,6 +84,18 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
     reader.readAsDataURL(file);
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 1.5 * 1024 * 1024) {
+      setError("Escolha uma logo PNG, JPEG ou WebP de até 1,5 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setLoginLogoUrl(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveProgramTheme = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -94,6 +109,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
         credentials: "include",
         body: JSON.stringify({
           themeImageUrl: programImageUrl,
+          loginLogoUrl,
           themeTitle,
           themeSubtitle,
         }),
@@ -271,6 +287,25 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
               <span className="text-[10px] rounded-full bg-primary/10 px-2.5 py-0.5 text-primary border border-primary/30 font-bold">
                 Tema Base
               </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1">
+                Logo da tela de login
+              </label>
+              <div className="flex items-center gap-3 rounded-xl border border-muted/30 bg-background p-3">
+                {loginLogoUrl ? (
+                  <img src={loginLogoUrl} alt="Prévia da logo do login" className="h-16 w-16 object-contain" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-primary/30 font-bold text-premium">JRC</div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => logoInputRef.current?.click()} className="rounded-lg border border-primary/40 px-3 py-2 text-xs font-bold text-primary">Escolher imagem</button>
+                  {loginLogoUrl && <button type="button" onClick={() => setLoginLogoUrl(null)} className="rounded-lg border border-muted/30 px-3 py-2 text-xs text-muted">Usar padrão</button>}
+                </div>
+                <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoUpload} className="hidden" />
+              </div>
+              <p className="mt-1 text-[11px] text-muted">A nova logo aparece no login após salvar, sem novo deploy.</p>
             </div>
 
             <div>

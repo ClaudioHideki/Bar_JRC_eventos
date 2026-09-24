@@ -113,7 +113,9 @@ export async function POST(req: NextRequest) {
       Date.now() + 24 * 60 * 60 * 1000
     );
 
-    const updated = await prisma.invitation.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.invitationDeliveryToken.deleteMany({ where: { invitationId: invitation.id } });
+      return tx.invitation.update({
       where: {
         id: invitation.id,
       },
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
         phone: true,
         expiresAt: true,
       },
+      });
     });
 
     const inviteLink = `${getBaseUrl(

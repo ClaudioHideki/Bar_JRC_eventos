@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import {
   generateInvitationBatch,
   revokeInvitation,
+  getInvitationByToken,
 } from "../../src/lib/domain/invitations";
 import { generateQrChallengeForUser } from "../../src/lib/domain/qr";
 import { confirmStamp, cancelStamp } from "../../src/lib/domain/stamps";
@@ -19,8 +20,13 @@ import {
   cleanupExpiredBuckets,
 } from "../../src/lib/rate-limit/postgres-rate-limit";
 import { POST as registerInvitation } from "../../src/app/api/invitation/register/route";
+import { createEventReview } from "../../src/lib/domain/event-reviews";
+import { completePasswordRecovery, prepareAdminPasswordRecovery, requestPasswordRecovery } from "../../src/lib/domain/password-recovery";
+import { auth } from "../../src/lib/auth/auth";
+import { withInvitationContext } from "../../src/lib/auth/invitation-context";
+import { generateSecureToken, hashInvitationToken } from "../../src/lib/security/crypto";
 
-const testDbUrl =
+const testDbUrl = process.env.DATABASE_URL ||
   "postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public";
 
 process.env.DATABASE_URL = testDbUrl;
@@ -41,17 +47,18 @@ function createRegisterRequest(body: {
   token: string;
   name: string;
   email: string;
+  phone: string;
   password: string;
   realEstateAgency: string;
   lgpdConsent: boolean;
-}) {
+}, ipAddress = "127.0.0.1") {
   return new NextRequest(
     "http://localhost:3000/api/invitation/register",
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
+        "x-forwarded-for": ipAddress,
         "user-agent": "Vitest-Agent",
       },
       body: JSON.stringify(body),
@@ -190,6 +197,7 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
         token,
         name: "Participante Convidado 1",
         email,
+        phone: "11987654321",
         password: "senha123456",
         realEstateAgency: "Imobiliária Teste",
         lgpdConsent: true,
@@ -232,6 +240,7 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
         token,
         name: "Intruso",
         email: "intruso@empresa.com.br",
+        phone: "11987654322",
         password: "senha123456",
         realEstateAgency: "Imobiliária Intruso",
         lgpdConsent: true,
@@ -278,6 +287,7 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
         token: batch[0].token,
         name: "Tentativa Duplicada",
         email: "participante1@empresa.com.br",
+        phone: "11987654323",
         password: "outrasenha123",
         realEstateAgency: "Outra Imobiliária",
         lgpdConsent: true,
@@ -506,5 +516,96 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
     const cleaned = await cleanupExpiredBuckets();
 
     expect(typeof cleaned).toBe("number");
+  });
+
+  it("9. Avaliação só é aceita após carimbo e uma vez por evento", async () => {
+    const user = await prisma.user.findUnique({ where: { email: "participante1@empresa.com.br" } });
+    const stamped = await prisma.stamp.findFirst({ where: { passport: { userId: user!.id }, status: "CONFIRMED" } });
+    const otherEvent = await prisma.event.create({ data: {
+      programId: (await prisma.passport.findUnique({ where: { userId: user!.id } }))!.programId,
+      name: "Evento sem presença", startDate: new Date(), endDate: new Date(Date.now() + 3600000), status: "ACTIVE",
+    } });
+    await expect(createEventReview(user!.id, otherEvent.id, 8, "Bom")).rejects.toThrow(/após o carimbo/);
+    const review = await createEventReview(user!.id, stamped!.eventId, 10, "  Excelente  ");
+    expect(review.feedback).toBe("Excelente");
+    await expect(createEventReview(user!.id, stamped!.eventId, 9, "Outra nota")).rejects.toMatchObject({ code: "P2002" });
+  });
+
+  it("10. Telefone duplicado é rejeitado no banco", async () => {
+    const first = await prisma.user.create({ data: { email: "phone1@test.local", name: "Primeiro", phoneE164: "+5511987654324" } });
+    expect(first.phoneE164).toBe("+5511987654324");
+    await expect(prisma.user.create({ data: { email: "phone2@test.local", name: "Segundo", phoneE164: "+5511987654324" } })).rejects.toMatchObject({ code: "P2002" });
+  });
+
+  it("11. Recuperação troca a senha uma vez e encerra sessões", async () => {
+    const user = await prisma.user.create({ data: {
+      email: "recovery@test.local", name: "Recuperação", role: "PARTICIPANT", status: "ACTIVE", phoneE164: "+5511987654322",
+    } });
+    const account = await prisma.account.create({ data: { userId: user.id, accountId: user.id, providerId: "credential", password: "old-hash" } });
+    await prisma.session.create({ data: { userId: user.id, token: "recovery-test-session", expiresAt: new Date(Date.now() + 3600000) } });
+    const url = await requestPasswordRecovery("11 98765-4322", "127.0.0.42", "http://localhost:3000");
+    expect(url).toContain("/recuperar-senha/");
+    const token = url!.split("/").at(-1)!;
+    await expect(completePasswordRecovery(token, "nova-senha-123", "127.0.0.42")).resolves.toBe(true);
+    expect((await prisma.account.findUnique({ where: { id: account.id } }))!.password).not.toBe("old-hash");
+    expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
+    await expect(completePasswordRecovery(token, "nova-senha-456", "127.0.0.42")).rejects.toThrow(/inválido ou expirado/);
+  });
+
+  it("12. Cadastro por convite persiste WhatsApp no usuário", async () => {
+    const program = await prisma.program.findUnique({ where: { slug: "passaporte-jrc-2026" } });
+    const invitation = await prisma.invitation.create({ data: {
+      programId: program!.id, tokenHash: `test-phone-invite-${Date.now()}`, status: "AVAILABLE", recipientPhoneE164: "+5511987654323",
+    } });
+    await prisma.pendingRegistration.create({ data: {
+      programId: program!.id, invitationId: invitation.id, normalizedEmail: "phone-signup@test.local", name: "Cadastro Telefone",
+      phoneE164: "+5511987654323", expiresAt: new Date(Date.now() + 300000), status: "VERIFIED",
+    } });
+    await expect(auth.api.signUpEmail({ body: {
+      name: "Cadastro Telefone", email: "phone-signup@test.local", password: "senha-segura-123",
+      phoneE164: "+5511987654323", realEstateAgency: "Imobiliária Teste",
+    } })).rejects.toThrow();
+    await withInvitationContext({ invitationId: invitation.id, email: "phone-signup@test.local", phoneE164: "+5511987654323" }, () => auth.api.signUpEmail({ body: {
+      name: "Cadastro Telefone", email: "phone-signup@test.local", password: "senha-segura-123",
+      phoneE164: "+5511987654323", realEstateAgency: "Imobiliária Teste",
+    } }));
+    const user = await prisma.user.findUnique({ where: { email: "phone-signup@test.local" } });
+    expect(user?.phoneE164).toBe("+5511987654323");
+  });
+
+  it("13. Token adicional preserva o convite original", async () => {
+    const program = await prisma.program.findUnique({ where: { slug: "passaporte-jrc-2026" } });
+    const original = generateSecureToken(32);
+    const invitation = await prisma.invitation.create({ data: { programId: program!.id, tokenHash: hashInvitationToken(original) } });
+    const delivery = generateSecureToken(32);
+    await prisma.invitationDeliveryToken.create({ data: { invitationId: invitation.id, tokenHash: hashInvitationToken(delivery) } });
+    expect((await getInvitationByToken(original))?.id).toBe(invitation.id);
+    expect((await getInvitationByToken(delivery))?.id).toBe(invitation.id);
+  });
+
+  it("14. Administrador prepara recuperação pelo WhatsApp usando telefone legado", async () => {
+    const user = await prisma.user.create({ data: {
+      email: "legacy-recovery@test.local", name: "Cliente Legado", role: "PARTICIPANT", status: "ACTIVE", phone: "(31) 98765-4321",
+    } });
+    const prepared = await prepareAdminPasswordRecovery(user.id, "https://passaporte.example.test");
+    expect(prepared?.phoneE164).toBe("+5531987654321");
+    expect(prepared?.url).toMatch(/^https:\/\/passaporte\.example\.test\/recuperar-senha\/[a-f0-9]{64}$/);
+    expect(await prisma.passwordResetRequest.count({ where: { userId: user.id, consumedAt: null } })).toBe(1);
+  });
+
+  it("15. Convite com telefone legado inválido exige correção antes da ativação", async () => {
+    const program = await prisma.program.findUnique({ where: { slug: "passaporte-jrc-2026" } });
+    const token = generateSecureToken(32);
+    const invitation = await prisma.invitation.create({ data: {
+      programId: program!.id, tokenHash: hashInvitationToken(token), status: "AVAILABLE", phone: "número incompleto",
+    } });
+    const response = await registerInvitation(createRegisterRequest({
+      token, name: "Cliente com Convite Legado", email: "legacy-invalid-phone@test.local",
+      phone: "11987654329", password: "senha-segura-123", realEstateAgency: "Imobiliária Teste", lgpdConsent: true,
+    }, "127.0.0.99"));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/precisa ser corrigido pelo administrador/);
+    expect((await prisma.invitation.findUnique({ where: { id: invitation.id } }))?.status).toBe("AVAILABLE");
+    expect(await prisma.user.findUnique({ where: { email: "legacy-invalid-phone@test.local" } })).toBeNull();
   });
 });
