@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Passaporte de Eventos JRC",
   description: "Passaporte digital corporativo de eventos para participantes convidados da JRC",
-  icons: { icon: "/brand/favicon-bar-jrc.png" },
+  icons: { icon: "/brand/favicon-bar-jrc.png?v=20261005" },
 };
 
 export default function RootLayout({

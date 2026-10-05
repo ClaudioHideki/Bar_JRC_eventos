@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface ParticipantItem {
   id: string; // userId
@@ -28,6 +29,7 @@ export function AdminParticipantesClient({
   const [participants, setParticipants] = useState<ParticipantItem[]>(initialParticipants);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [recoveryLink, setRecoveryLink] = useState<{ userId: string; url: string } | null>(null);
 
@@ -54,6 +56,7 @@ export function AdminParticipantesClient({
       });
 
       const data = await res.json();
+      if (res.status === 401) setSessionExpired(true);
       if (!res.ok) {
         throw new Error(data.error || "Erro ao excluir participante.");
       }
@@ -78,7 +81,8 @@ export function AdminParticipantesClient({
         body: JSON.stringify({ userId: p.id, phone }),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Erro ao salvar WhatsApp.");
+      if (response.status === 401) setSessionExpired(true);
+      if (!response.ok) throw new Error(response.status === 409 ? "Contato duplicado" : body.error || "Erro ao salvar WhatsApp.");
       setSuccess("WhatsApp atualizado.");
       router.refresh();
     } catch (cause: unknown) {
@@ -96,6 +100,7 @@ export function AdminParticipantesClient({
         body: JSON.stringify({ userId: p.id }),
       });
       const body = await response.json();
+      if (response.status === 401) setSessionExpired(true);
       if (!response.ok) throw new Error(body.error || "Erro ao preparar recuperação.");
       setRecoveryLink({ userId: p.id, url: body.whatsappUrl });
       setSuccess(`Link de recuperação de ${p.name} preparado. Abra a conversa e confirme o envio.`);
@@ -121,6 +126,7 @@ export function AdminParticipantesClient({
       {error && (
         <div role="alert" className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger font-medium">
           {error}
+          {sessionExpired && <> <Link href="/login" className="underline">Entrar novamente</Link></>}
         </div>
       )}
 

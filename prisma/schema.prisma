@@ -99,6 +99,7 @@ model User {
   usedInvite      Invitation?  @relation("UsedInvitation")
   cancelledStamps Stamp[]      @relation("CancelledStamps")
   passwordResets   PasswordResetRequest[]
+  wheelSpins       WheelSpin[] @relation("AdminWheelSpins")
 
   @@index([email])
   @@index([role, status])
@@ -171,6 +172,8 @@ model Program {
   passports     Passport[]
   events        Event[]
   registrations PendingRegistration[]
+  wheelPrizes   WheelPrize[]
+  wheelSpins    WheelSpin[]
 }
 
 model Invitation {
@@ -334,6 +337,38 @@ model EventReview {
 
   @@unique([passportId, eventId])
   @@index([eventId, submittedAt])
+}
+
+model WheelPrize {
+  id           String   @id @default(uuid())
+  programId    String
+  amountCents  Int
+  weight       Int      @default(0)
+  stockLimit   Int      @default(0)
+  awardedCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  program Program     @relation(fields: [programId], references: [id], onDelete: Restrict)
+  spins   WheelSpin[]
+
+  @@unique([programId, amountCents])
+}
+
+model WheelSpin {
+  id          String   @id @default(uuid())
+  programId   String
+  prizeId     String
+  amountCents Int
+  adminUserId String?
+  createdAt   DateTime @default(now())
+
+  program Program     @relation(fields: [programId], references: [id], onDelete: Restrict)
+  prize   WheelPrize  @relation(fields: [prizeId], references: [id], onDelete: Restrict)
+  admin   User?       @relation("AdminWheelSpins", fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([programId, createdAt])
+  @@index([prizeId])
 }
 
 model PasswordResetRequest {

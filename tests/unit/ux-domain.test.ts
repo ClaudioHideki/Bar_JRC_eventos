@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { hasLegacyPhoneMatch, normalizeBrazilianMobile, resolveStoredMobile } from "../../src/lib/security/phone";
 import { validateEventReview } from "../../src/lib/domain/event-reviews";
 import { buildCampaignMessage, campaignKindForStatus, matchingRegisteredRecipients } from "../../src/lib/domain/campaign-message";
+import { recoveryDeliveryMode } from "../../src/lib/domain/recovery-delivery-mode";
 import { hashPasswordResetToken } from "../../src/lib/security/crypto";
 
 describe("dados de contato", () => {
@@ -56,6 +57,10 @@ describe("comunicação da campanha", () => {
 });
 
 describe("recuperação de acesso", () => {
+  it("mostra orientação manual quando a produção não tem SMTP", () => {
+    expect(recoveryDeliveryMode({ NODE_ENV: "production", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "" })).toBe("ADMIN_MANUAL");
+    expect(recoveryDeliveryMode({ NODE_ENV: "production", SMTP_HOST: "mail.test", SMTP_USER: "user", SMTP_PASSWORD: "pass" })).toBe("EMAIL");
+  });
   it("produz hash determinístico do token sem armazenar o segredo bruto", () => {
     const first = hashPasswordResetToken("token-de-teste");
     expect(first).toHaveLength(64);

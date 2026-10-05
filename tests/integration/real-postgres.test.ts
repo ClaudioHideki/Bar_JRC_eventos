@@ -25,6 +25,11 @@ import { completePasswordRecovery, prepareAdminPasswordRecovery, requestPassword
 import { auth } from "../../src/lib/auth/auth";
 import { withInvitationContext } from "../../src/lib/auth/invitation-context";
 import { generateSecureToken, hashInvitationToken } from "../../src/lib/security/crypto";
+import { prepareInvitationWhatsapp } from "../../src/lib/domain/invitation-delivery";
+import { renderToStaticMarkup } from "react-dom/server";
+import HomePage from "../../src/app/page";
+import { saveWheelSettings, spinWheel, getWheelState } from "../../src/lib/domain/wheel-service";
+import { WHEEL_AMOUNTS_CENTS } from "../../src/lib/domain/wheel";
 
 const testDbUrl = process.env.DATABASE_URL ||
   "postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public";
@@ -70,6 +75,8 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
   beforeAll(async () => {
     // Limpa tabelas de teste
     await prisma.auditLog.deleteMany();
+    await prisma.wheelSpin.deleteMany();
+    await prisma.wheelPrize.deleteMany();
     await prisma.stamp.deleteMany();
     await prisma.qrChallenge.deleteMany();
     await prisma.passport.deleteMany();
@@ -607,5 +614,50 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
     expect((await response.json()).error).toMatch(/precisa ser corrigido pelo administrador/);
     expect((await prisma.invitation.findUnique({ where: { id: invitation.id } }))?.status).toBe("AVAILABLE");
     expect(await prisma.user.findUnique({ where: { email: "legacy-invalid-phone@test.local" } })).toBeNull();
+  });
+
+  it("16. Reenvio individual de convite com telefone já cadastrado prepara acesso", async () => {
+    const program = await prisma.program.findUnique({ where: { slug: "passaporte-jrc-2026" } });
+    const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+    const user = await prisma.user.create({ data: {
+      email: "resend-registered@test.local", name: "Cliente Existente", role: "PARTICIPANT", status: "ACTIVE",
+      phone: "(41) 98765-4321",
+    } });
+    const invitation = await prisma.invitation.create({ data: {
+      programId: program!.id, tokenHash: hashInvitationToken(generateSecureToken(32)),
+      status: "SENT", claimedName: "Nome do Convite", phone: "41987654321",
+    } });
+    const prepared = await prepareInvitationWhatsapp({
+      invitationId: invitation.id, actorUserId: admin!.id, baseUrl: "https://passaporte.example.test",
+    });
+    expect(prepared.kind).toBe("LOGIN");
+    expect(prepared.name).toBe(user.name);
+    expect(prepared.status).toBe("PREPARED");
+    expect(prepared.whatsappUrl).toContain(encodeURIComponent("https://passaporte.example.test/login"));
+    expect(await prisma.invitationDeliveryToken.count({ where: { invitationId: invitation.id } })).toBe(0);
+  });
+
+  it("17. Página inicial exibe a logo salva para o programa ativo", async () => {
+    const program = await prisma.program.upsert({
+      where: { slug: "passaporte-jrc-2026" }, update: {},
+      create: { slug: "passaporte-jrc-2026", name: "Passaporte JRC 2026", capacity: 30 },
+    });
+    const logo = "data:image/png;base64,dGVzdA==";
+    await prisma.program.update({ where: { id: program!.id }, data: { loginLogoUrl: logo } });
+    const html = renderToStaticMarkup(await HomePage());
+    expect(html).toContain('alt="Logo do Bar JRC"');
+    expect(html).toContain(logo);
+  });
+
+  it("18. Roleta não ultrapassa estoque sob giros concorrentes", async () => {
+    const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+    const settings = WHEEL_AMOUNTS_CENTS.map((amountCents) => ({ amountCents, weight: amountCents === 300000 ? 100 : 0, limit: amountCents === 300000 ? 1 : 0 }));
+    await saveWheelSettings(settings, admin!.id);
+    const outcomes = await Promise.allSettled([spinWheel(admin!.id), spinWheel(admin!.id)]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const state = await getWheelState();
+    expect(state.prizes.find((prize) => prize.amountCents === 300000)?.awardedCount).toBe(1);
+    expect(state.history.filter((spin) => spin.amountCents === 300000)).toHaveLength(1);
+    await expect(saveWheelSettings(settings.map((item) => item.amountCents === 300000 ? { ...item, limit: 0 } : item), admin!.id)).rejects.toThrow(/já foi sorteado/);
   });
 });

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { buildCampaignMessage } from "@/lib/domain/campaign-message";
+
+type WhatsAppPreparation = { id: string; name: string; phone?: string; imageUrl?: string | null; kind: "LOGIN" | "INVITATION"; status: "PREPARED" | "SKIPPED" | "FAILED"; detail?: string; whatsappUrl?: string };
 
 interface InvitationItem {
   id: string;
@@ -46,7 +49,8 @@ export function AdminConvitesClient({
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [bulkResults, setBulkResults] = useState<Array<{ id: string; name: string; phone?: string; kind: string; status: string; detail?: string; whatsappUrl?: string }>>([]);
+  const [bulkResults, setBulkResults] = useState<WhatsAppPreparation[]>([]);
+  const [singleResults, setSingleResults] = useState<Record<string, WhatsAppPreparation>>({});
   const [bulkProgress, setBulkProgress] = useState(0);
 
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -122,9 +126,9 @@ export function AdminConvitesClient({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(
-          data.error || "Erro ao criar convite."
-        );
+        if (res.status === 403 || res.status === 401) throw new Error("A sessão atual não tem acesso de administrador. Entre novamente com a conta de administrador.");
+        if (/WhatsApp já possui|WhatsApp já está vinculado/i.test(data.error || "")) throw new Error("Contato duplicado");
+        throw new Error(data.error || "Erro ao criar convite.");
       }
 
       setGeneratedTokens((current) => [
@@ -552,16 +556,7 @@ export function AdminConvitesClient({
       ? `phone=${normalizedPhone}&`
       : "";
 
-    const message = `🍻 *Convite Exclusivo — Passaporte Bar JRC (40 Anos)*
-
-Olá${name ? `, *${name}*` : ""}! Você recebeu o passaporte oficial, participe das campanhas comerciais, e garanta seus vistos no nosso passaporte.
-
-Complete os 12 carimbos mensais e garanta o direito de escolher a temática do evento de encerramento em Setembro de 2027!
-
-Obs.: Caso ninguém atinja os 12 selos, será válido quem tiver a maior quantidade de carimbos.
-
-👉 *Ative seu Passaporte Digital no link abaixo:*
-${clickableLink}`;
+    const message = buildCampaignMessage({ kind: "INVITATION", name: name || "participante", url: clickableLink }).text;
 
     return `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(
       message
@@ -569,7 +564,7 @@ ${clickableLink}`;
   };
 
   const handleBulkDispatch = async () => {
-    if (!confirm("Preparar a lista personalizada de WhatsApp? Convites pendentes receberão um link adicional; cada mensagem será enviada manualmente.")) return;
+    if (!confirm("Preparar a lista personalizada? Esta ação NÃO envia mensagens. Depois você abrirá e confirmará cada conversa manualmente no WhatsApp.")) return;
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -580,11 +575,13 @@ ${clickableLink}`;
       const all: typeof bulkResults = [];
       do {
         const response: Response = await fetch("/api/admin/invitations/bulk-send", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
           body: JSON.stringify({ mode: "PREPARE", cursor }),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Falha no processamento em massa.");
+        if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+          ? "A sessão atual não tem acesso de administrador. Entre novamente com a conta de administrador."
+          : data.error || "Falha no processamento em massa.");
         all.push(...data.results);
         setBulkResults([...all]);
         setBulkProgress(all.length);
@@ -595,6 +592,31 @@ ${clickableLink}`;
       router.refresh();
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Falha no processamento em massa.");
+    } finally { setLoading(false); }
+  };
+
+  const handlePrepareSingleWhatsApp = async (invitationId: string) => {
+    setLoading(true);
+    clearMessages();
+    try {
+      const response = await fetch("/api/admin/invitations/bulk-send", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ mode: "PREPARE", invitationId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+        ? "A sessão atual não tem acesso de administrador. Entre novamente com a conta de administrador."
+        : body.error || "Falha ao preparar mensagem.");
+      const result = body.results?.[0] as WhatsAppPreparation | undefined;
+      if (!result || result.status !== "PREPARED" || !result.whatsappUrl) {
+        throw new Error(result?.detail || "Não foi possível preparar mensagem para este contato.");
+      }
+      setSingleResults((current) => ({ ...current, [invitationId]: result }));
+      setSuccess(result.kind === "LOGIN"
+        ? `Mensagem de acesso de ${result.name} preparada. Clique em Abrir WhatsApp para enviar manualmente.`
+        : `Convite de ${result.name} preparado. Clique em Abrir WhatsApp para enviar manualmente.`);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Falha ao preparar mensagem.");
     } finally { setLoading(false); }
   };
 
@@ -627,7 +649,7 @@ ${clickableLink}`;
         <div className="flex flex-wrap gap-2">
           <button onClick={handleBulkDispatch} disabled={loading}
             className="rounded-xl border border-secondary/40 px-4 py-2 text-xs font-bold text-secondary disabled:opacity-50">
-            Preparar lista de WhatsApp
+            Ver lista de WhatsApp (não envia)
           </button>
           <button
             onClick={() =>
@@ -686,11 +708,15 @@ ${clickableLink}`;
         </div>
       )}
 
+      <p className="text-xs text-muted">A lista apenas prepara mensagens. Nenhuma conversa é enviada sem você abrir e confirmar o envio no WhatsApp.</p>
       {loading && bulkProgress > 0 && <p role="status" className="text-xs text-muted">{bulkProgress} destinatários processados...</p>}
       {bulkResults.length > 0 && <section className="rounded-2xl border border-secondary/30 bg-surface p-4 space-y-2">
         <h2 className="text-sm font-bold">Lista personalizada de WhatsApp</h2>
         <div className="max-h-72 space-y-2 overflow-y-auto">{bulkResults.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-muted/10 py-2 text-xs">
-          <span>{item.name} · {item.phone || "Sem número"} · {item.kind === "LOGIN" ? "Acesso" : "Convite"} · {item.status === "PREPARED" ? "Pronto para WhatsApp" : item.status === "SKIPPED" ? "Ignorado" : "Falhou"}</span>
+          <span className="flex items-center gap-2">{item.imageUrl
+            ? <img src={item.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+            : <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-bold">{item.name.slice(0, 1).toUpperCase()}</span>}
+            {item.name} · {item.phone || "Sem número"} · {item.kind === "LOGIN" ? "Acesso" : "Convite"} · {item.status === "PREPARED" ? "Pronto para WhatsApp" : item.status === "SKIPPED" ? "Ignorado" : "Falhou"}</span>
           {item.detail && <span className="text-danger">{item.detail}</span>}
           {item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-secondary">Abrir WhatsApp</a>}
         </div>)}</div>
@@ -1101,7 +1127,7 @@ ${clickableLink}`;
                                 </button>
                               )}
 
-                            {inv.inviteLink && (
+                            {inv.inviteLink && !isUsed && !isRevoked && (
                               <>
                                 <button
                                   type="button"
@@ -1128,20 +1154,17 @@ ${clickableLink}`;
                                   Abrir Convite
                                 </a>
 
-                                <a
-                                  href={buildWhatsappUrl(
-                                    inv.inviteLink,
-                                    inv.claimedName,
-                                    inv.phone
-                                  )}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success"
-                                >
-                                  WhatsApp
-                                </a>
                               </>
                             )}
+
+                            {!isRevoked && <button type="button" onClick={() => handlePrepareSingleWhatsApp(inv.id)} disabled={loading}
+                              className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success disabled:opacity-50">
+                              Preparar WhatsApp
+                            </button>}
+                            {singleResults[inv.id]?.whatsappUrl && <a href={singleResults[inv.id].whatsappUrl} target="_blank" rel="noopener noreferrer"
+                              className="rounded-lg border border-success/30 px-2.5 py-1 text-[11px] font-semibold text-success">
+                              Abrir mensagem de {singleResults[inv.id].kind === "LOGIN" ? "acesso" : "convite"}
+                            </a>}
 
                             <button
                               type="button"
