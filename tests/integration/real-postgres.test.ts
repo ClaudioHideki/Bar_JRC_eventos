@@ -28,7 +28,7 @@ import { generateSecureToken, hashInvitationToken } from "../../src/lib/security
 import { prepareInvitationWhatsapp } from "../../src/lib/domain/invitation-delivery";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "../../src/app/page";
-import { saveWheelSettings, spinWheel, getWheelState } from "../../src/lib/domain/wheel-service";
+import { saveWheelSettings, spinWheel, getWheelState, voidWheelSpins } from "../../src/lib/domain/wheel-service";
 import { WHEEL_AMOUNTS_CENTS } from "../../src/lib/domain/wheel";
 
 const testDbUrl = process.env.DATABASE_URL ||
@@ -659,5 +659,24 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
     expect(state.prizes.find((prize) => prize.amountCents === 300000)?.awardedCount).toBe(1);
     expect(state.history.filter((spin) => spin.amountCents === 300000)).toHaveLength(1);
     await expect(saveWheelSettings(settings.map((item) => item.amountCents === 300000 ? { ...item, limit: 0 } : item), admin!.id)).rejects.toThrow(/já foi sorteado/);
+  });
+
+  it("19. Exclusão auditada devolve os prêmios e impede anulação duplicada", async () => {
+    const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+    const before = await getWheelState();
+    const id = before.history.find((spin) => spin.amountCents === 300000)?.id;
+    expect(id).toBeTruthy();
+    await voidWheelSpins({ mode: "ONE", spinId: id! }, admin!.id);
+    expect((await getWheelState()).prizes.find((prize) => prize.amountCents === 300000)?.awardedCount).toBe(0);
+    expect(await prisma.wheelSpin.findUnique({ where: { id } })).toMatchObject({ voidedById: admin!.id });
+    await expect(voidWheelSpins({ mode: "ONE", spinId: id! }, admin!.id)).rejects.toThrow(/já foi excluído/);
+    const replacement = await spinWheel(admin!.id);
+    expect(replacement.amountCents).toBe(300000);
+    await voidWheelSpins({ mode: "ALL" }, admin!.id);
+    const after = await getWheelState();
+    expect(after.history).toHaveLength(0);
+    expect(after.prizes.find((prize) => prize.amountCents === 300000)?.awardedCount).toBe(0);
+    expect(await prisma.wheelSpin.count({ where: { programId: (await prisma.program.findFirst({ where: { status: "ACTIVE" } }))!.id } })).toBeGreaterThan(0);
+    expect(await prisma.auditLog.count({ where: { action: "WHEEL_SPIN_VOIDED" } })).toBeGreaterThan(0);
   });
 });

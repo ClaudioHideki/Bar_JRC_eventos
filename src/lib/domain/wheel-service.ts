@@ -13,7 +13,7 @@ export async function getWheelState() {
   const program = await activeProgram();
   const [stored, history] = await Promise.all([
     prisma.wheelPrize.findMany({ where: { programId: program.id } }),
-    prisma.wheelSpin.findMany({ where: { programId: program.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, amountCents: true, createdAt: true, admin: { select: { name: true } } } }),
+    prisma.wheelSpin.findMany({ where: { programId: program.id, voidedAt: null }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, amountCents: true, createdAt: true, admin: { select: { name: true } } } }),
   ]);
   const prizes = WHEEL_AMOUNTS_CENTS.map((amountCents) => {
     const prize = stored.find((item) => item.amountCents === amountCents);
@@ -55,4 +55,27 @@ export async function spinWheel(adminUserId: string) {
     await createAuditLog({ actorUserId: adminUserId, actorRole: "ADMIN", action: "WHEEL_SPUN", entity: "WheelSpin", entityId: spin.id, details: { amountCents: spin.amountCents }, tx });
     return { id: spin.id, amountCents: spin.amountCents, sectorIndex: WHEEL_AMOUNTS_CENTS.indexOf(spin.amountCents as typeof WHEEL_AMOUNTS_CENTS[number]) };
   }, { timeout: 20000 });
+}
+
+export async function voidWheelSpins(input: { mode: "ONE"; spinId: string } | { mode: "ALL" }, adminUserId: string) {
+  const program = await activeProgram();
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Program" WHERE "id" = ${program.id} FOR UPDATE`;
+    const spins = await tx.wheelSpin.findMany({ where: {
+      programId: program.id, voidedAt: null,
+      ...(input.mode === "ONE" ? { id: input.spinId } : {}),
+    }, select: { id: true, prizeId: true, amountCents: true } });
+    if (!spins.length) throw new Error(input.mode === "ONE" ? "Este giro já foi excluído ou não foi encontrado." : "Não há giros para excluir.");
+    const counts = new Map<string, number>();
+    for (const spin of spins) counts.set(spin.prizeId, (counts.get(spin.prizeId) || 0) + 1);
+    for (const [prizeId, count] of counts) {
+      await tx.wheelPrize.update({ where: { id: prizeId }, data: { awardedCount: { decrement: count } } });
+    }
+    await tx.wheelSpin.updateMany({ where: { id: { in: spins.map((spin) => spin.id) }, voidedAt: null }, data: { voidedAt: new Date(), voidedById: adminUserId } });
+    for (const spin of spins) {
+      await createAuditLog({ actorUserId: adminUserId, actorRole: "ADMIN", action: "WHEEL_SPIN_VOIDED", entity: "WheelSpin", entityId: spin.id,
+        details: { amountCents: spin.amountCents, stockReturned: true, mode: input.mode }, tx });
+    }
+  }, { timeout: 20000 });
+  return getWheelState();
 }

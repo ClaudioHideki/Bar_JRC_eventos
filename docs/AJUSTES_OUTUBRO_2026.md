@@ -14,10 +14,13 @@
 - A chance efetiva é o peso do prêmio dividido pela soma dos pesos de prêmios ainda disponíveis. O tamanho visual dos setores não reflete pesos diferentes.
 - O servidor sorteia com `crypto.randomInt` dentro de transação PostgreSQL que bloqueia o programa; registra o resultado e incrementa a quantidade sorteada. O limite também é imposto por restrição no banco.
 - O histórico de giros permanece registrado. A roleta não executa pagamento nem atribui o prêmio a um participante.
+- A tela de giro mostra apenas a roleta, em uma área branca, e o resultado. Chances, limites e histórico ficam na aba administrativa `/admin/roleta/ajustes`.
+- Em Ajustes, o administrador pode excluir um giro ou limpar todos os giros. A exclusão anula os registros, devolve cada prêmio ao limite disponível e cria uma entrada de auditoria; os registros anulados permanecem no banco para rastreabilidade.
 
 ## Implantação e dados
 
 - A migração `20261005150000_admin_wheel` **adiciona** apenas tabelas `WheelPrize` e `WheelSpin`, índices e restrições; não apaga nem atualiza clientes, telefones, convites ou passaportes existentes.
+- A migração `20261005170000_wheel_spin_void` adiciona campos de anulação à tabela de giros existente, sem apagar resultados anteriores.
 - O `Dockerfile` executa `prisma migrate deploy` ao iniciar a aplicação. O Compose preserva o volume nomeado `jrc_passaporte_postgres_data`.
 - Fazer backup do volume PostgreSQL antes do deploy, confirmar o banco de destino e verificar a aba da roleta após o deploy. Inicialmente os limites e pesos são zero; o administrador precisa configurá-los antes do primeiro giro.
 - O favicon usa a arte enviada e a página inicial consulta a logo salva no tema ativo.

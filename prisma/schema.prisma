@@ -362,12 +362,15 @@ model WheelSpin {
   amountCents Int
   adminUserId String?
   createdAt   DateTime @default(now())
+  voidedAt    DateTime?
+  voidedById  String?
 
   program Program     @relation(fields: [programId], references: [id], onDelete: Restrict)
   prize   WheelPrize  @relation(fields: [prizeId], references: [id], onDelete: Restrict)
   admin   User?       @relation("AdminWheelSpins", fields: [adminUserId], references: [id], onDelete: SetNull)
 
   @@index([programId, createdAt])
+  @@index([programId, voidedAt])
   @@index([prizeId])
 }
 
