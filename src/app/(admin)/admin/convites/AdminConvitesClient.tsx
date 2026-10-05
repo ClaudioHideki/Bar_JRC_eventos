@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { buildCampaignMessage } from "@/lib/domain/campaign-message";
 
 type WhatsAppPreparation = { id: string; name: string; phone?: string; imageUrl?: string | null; kind: "LOGIN" | "INVITATION"; status: "PREPARED" | "SKIPPED" | "FAILED"; detail?: string; whatsappUrl?: string };
+type ExistingContact = { id: string; name: string; email: string; phone: string; image: string | null };
 
 interface InvitationItem {
   id: string;
@@ -50,6 +51,7 @@ export function AdminConvitesClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [bulkResults, setBulkResults] = useState<WhatsAppPreparation[]>([]);
+  const [bulkOpenedIds, setBulkOpenedIds] = useState<string[]>([]);
   const [singleResults, setSingleResults] = useState<Record<string, WhatsAppPreparation>>({});
   const [bulkProgress, setBulkProgress] = useState(0);
 
@@ -57,6 +59,8 @@ export function AdminConvitesClient({
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [existingContact, setExistingContact] = useState<ExistingContact | null>(null);
+  const [existingAccessUrl, setExistingAccessUrl] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -127,7 +131,19 @@ export function AdminConvitesClient({
 
       if (!res.ok) {
         if (res.status === 403 || res.status === 401) throw new Error("A sessão atual não tem acesso de administrador. Entre novamente com a conta de administrador.");
-        if (/WhatsApp já possui|WhatsApp já está vinculado/i.test(data.error || "")) throw new Error("Contato duplicado");
+        if (/WhatsApp já possui|WhatsApp já está vinculado/i.test(data.error || "")) {
+          const lookup = await fetch(`/api/admin/participants/contact?phone=${encodeURIComponent(clientPhone)}`, { credentials: "include", cache: "no-store" });
+          if (lookup.ok) {
+            const contact = await lookup.json() as ExistingContact;
+            setExistingContact(contact);
+            setClientName(contact.name);
+            setClientEmail(contact.email);
+            setClientPhone(contact.phone);
+            setExistingAccessUrl("");
+            throw new Error("Contato duplicado. Confira os dados e clique em Confirmar dados para preparar o acesso.");
+          }
+          throw new Error("Contato duplicado. Confira o convite existente na lista abaixo.");
+        }
         throw new Error(data.error || "Erro ao criar convite.");
       }
 
@@ -165,6 +181,24 @@ export function AdminConvitesClient({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmExisting = async () => {
+    if (!existingContact) return;
+    setLoading(true); clearMessages();
+    try {
+      const response = await fetch("/api/admin/participants/contact", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: existingContact.id, name: clientName, email: clientEmail, phone: clientPhone }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Não foi possível confirmar os dados.");
+      setExistingContact({ ...existingContact, name: body.user.name, email: body.user.email, phone: body.user.phoneE164 });
+      setExistingAccessUrl(body.whatsappUrl);
+      setSuccess("Dados confirmados. Abra o WhatsApp para enviar a mensagem de acesso manualmente.");
+      router.refresh();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Erro ao confirmar dados."); }
+    finally { setLoading(false); }
   };
 
   const handleGenerateBatch = async (count: number) => {
@@ -569,6 +603,7 @@ export function AdminConvitesClient({
     setError(null);
     setSuccess(null);
     setBulkResults([]);
+    setBulkOpenedIds([]);
     setBulkProgress(0);
     try {
       let cursor: string | null = null;
@@ -619,6 +654,17 @@ export function AdminConvitesClient({
       setError(cause instanceof Error ? cause.message : "Falha ao preparar mensagem.");
     } finally { setLoading(false); }
   };
+
+  const readyByPhone = new Map<string, WhatsAppPreparation>();
+  for (const item of bulkResults) {
+    if (item.status !== "PREPARED" || !item.whatsappUrl || !item.phone) continue;
+    const key = item.phone.replace(/\D/g, "");
+    const previous = readyByPhone.get(key);
+    if (!previous || (item.kind === "LOGIN" && previous.kind !== "LOGIN")) readyByPhone.set(key, item);
+  }
+  const readyContacts = Array.from(readyByPhone.values());
+  const nextContact = readyContacts.find((item) => !bulkOpenedIds.includes(item.id));
+  const ignoredCount = bulkResults.length - readyContacts.length;
 
   return (
     <div className="space-y-6">
@@ -712,13 +758,14 @@ export function AdminConvitesClient({
       {loading && bulkProgress > 0 && <p role="status" className="text-xs text-muted">{bulkProgress} destinatários processados...</p>}
       {bulkResults.length > 0 && <section className="rounded-2xl border border-secondary/30 bg-surface p-4 space-y-2">
         <h2 className="text-sm font-bold">Lista personalizada de WhatsApp</h2>
-        <div className="max-h-72 space-y-2 overflow-y-auto">{bulkResults.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-muted/10 py-2 text-xs">
+        <p className="text-xs text-muted">{readyContacts.length} contato(s) com número válido · {ignoredCount} convite(s) sem envio nesta lista · {bulkOpenedIds.length} conversa(s) aberta(s). Abrir a conversa não envia a mensagem.</p>
+        {nextContact && <a href={nextContact.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => setBulkOpenedIds((current) => current.includes(nextContact.id) ? current : [...current, nextContact.id])} className="inline-block rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white">Abrir próximo WhatsApp para envio: {nextContact.name}</a>}
+        <div className="max-h-72 space-y-2 overflow-y-auto">{readyContacts.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-muted/10 py-2 text-xs">
           <span className="flex items-center gap-2">{item.imageUrl
             ? <img src={item.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
             : <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-bold">{item.name.slice(0, 1).toUpperCase()}</span>}
-            {item.name} · {item.phone || "Sem número"} · {item.kind === "LOGIN" ? "Acesso" : "Convite"} · {item.status === "PREPARED" ? "Pronto para WhatsApp" : item.status === "SKIPPED" ? "Ignorado" : "Falhou"}</span>
-          {item.detail && <span className="text-danger">{item.detail}</span>}
-          {item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-secondary">Abrir WhatsApp</a>}
+            {item.name} · {item.phone} · {item.kind === "LOGIN" ? "Acesso" : "Convite"} · {bulkOpenedIds.includes(item.id) ? "Conversa aberta" : "Pronto para WhatsApp"}</span>
+          <a href={item.whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => setBulkOpenedIds((current) => current.includes(item.id) ? current : [...current, item.id])} className="font-bold text-secondary">Abrir WhatsApp</a>
         </div>)}</div>
       </section>}
 
@@ -790,15 +837,16 @@ export function AdminConvitesClient({
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-primary/90 disabled:opacity-50"
-          >
-            {loading
-              ? "Gerando Convite..."
-              : "Gerar Link de Convite"}
-          </button>
+          {existingContact ? <div className="space-y-3 rounded-xl border border-secondary/30 bg-secondary/5 p-4 text-sm">
+            <p className="font-bold">Cadastro encontrado: {existingContact.name}</p>
+            <p className="text-muted">{existingContact.email} · {existingContact.phone}</p>
+            <p className="text-xs text-muted">Confira ou corrija os campos acima. Este contato já tem cadastro e receberá uma mensagem de acesso, sem novo convite.</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={handleConfirmExisting} disabled={loading} className="rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white disabled:opacity-50">Confirmar dados</button>
+              {existingAccessUrl && <a href={existingAccessUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-secondary/50 px-5 py-2.5 text-xs font-bold text-secondary">Abrir WhatsApp de acesso</a>}
+              <button type="button" onClick={() => { setExistingContact(null); setExistingAccessUrl(""); clearMessages(); }} className="rounded-xl border border-white/20 px-4 py-2.5 text-xs text-muted">Outro contato</button>
+            </div>
+          </div> : <button type="submit" disabled={loading} className="rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-primary/90 disabled:opacity-50">{loading ? "Gerando Convite..." : "Gerar Link de Convite"}</button>}
         </form>
       )}
 

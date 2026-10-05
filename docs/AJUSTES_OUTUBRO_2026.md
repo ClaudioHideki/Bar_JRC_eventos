@@ -5,6 +5,8 @@
 - A lista de WhatsApp no painel é manual. Preparar a lista não envia mensagens. Cada conversa precisa ser aberta e enviada pelo administrador.
 - O reenvio para um telefone associado a participante ativo usa uma mensagem de **acesso** com o link de login. Apenas quem ainda não se cadastrou recebe mensagem de **convite**.
 - Nomes, telefones e fotos já cadastradas são exibidos na lista, quando disponíveis. A imagem anexa à conversa deve ser escolhida manualmente no WhatsApp.
+- A lista filtra números válidos e repetidos. O botão **Abrir próximo WhatsApp para envio** abre uma conversa por vez; abrir a conversa não comprova que a mensagem foi enviada.
+- Se o telefone já pertence a um participante ativo, o formulário mostra o cadastro para conferência. **Confirmar dados** salva eventuais correções e prepara uma mensagem de acesso pelo WhatsApp, sem criar outro convite.
 - Quando não existe provedor oficial de WhatsApp nem SMTP configurado, a página de recuperação orienta o participante a solicitar ao administrador um link temporário. A equipe gera o link na lista de participantes e o envia manualmente. Senhas nunca são enviadas.
 
 ## Roleta administrativa
@@ -23,4 +25,4 @@
 - A migração `20261005170000_wheel_spin_void` adiciona campos de anulação à tabela de giros existente, sem apagar resultados anteriores.
 - O `Dockerfile` executa `prisma migrate deploy` ao iniciar a aplicação. O Compose preserva o volume nomeado `jrc_passaporte_postgres_data`.
 - Fazer backup do volume PostgreSQL antes do deploy, confirmar o banco de destino e verificar a aba da roleta após o deploy. Inicialmente os limites e pesos são zero; o administrador precisa configurá-los antes do primeiro giro.
-- O favicon usa a arte enviada e a página inicial consulta a logo salva no tema ativo.
+- O favicon usa a arte transparente enviada. A página inicial e o cabeçalho administrativo consultam a logo salva no tema ativo.

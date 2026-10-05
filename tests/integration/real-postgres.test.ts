@@ -30,6 +30,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "../../src/app/page";
 import { saveWheelSettings, spinWheel, getWheelState, voidWheelSpins } from "../../src/lib/domain/wheel-service";
 import { WHEEL_AMOUNTS_CENTS } from "../../src/lib/domain/wheel";
+import { findParticipantContact, confirmParticipantContact } from "../../src/lib/domain/participant-contact";
 
 const testDbUrl = process.env.DATABASE_URL ||
   "postgresql://jrc_test_user:jrc_test_password@localhost:5433/jrc_passaporte_test?schema=public";
@@ -678,5 +679,21 @@ describe("Integração com PostgreSQL Real (Docker porta 5433)", () => {
     expect(after.prizes.find((prize) => prize.amountCents === 300000)?.awardedCount).toBe(0);
     expect(await prisma.wheelSpin.count({ where: { programId: (await prisma.program.findFirst({ where: { status: "ACTIVE" } }))!.id } })).toBeGreaterThan(0);
     expect(await prisma.auditLog.count({ where: { action: "WHEEL_SPIN_VOIDED" } })).toBeGreaterThan(0);
+  });
+
+  it("20. Contato cadastrado pode ser conferido e recebe acesso, sem novo convite", async () => {
+    const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+    const existing = await findParticipantContact("11987654323");
+    expect(existing?.email).toBe("phone-signup@test.local");
+    const invitationCount = await prisma.invitation.count();
+    const confirmed = await confirmParticipantContact({
+      userId: existing!.id, name: "Cliente Confirmado", email: "phone-signup-confirmed@test.local",
+      phone: "11987654323", adminUserId: admin!.id, baseUrl: "https://passaporte.example.test",
+    });
+    expect(confirmed.user.name).toBe("Cliente Confirmado");
+    expect(confirmed.whatsappUrl).toContain(encodeURIComponent("https://passaporte.example.test/login"));
+    expect(await prisma.invitation.count()).toBe(invitationCount);
+    expect((await prisma.user.findUnique({ where: { id: existing!.id } }))?.email).toBe("phone-signup-confirmed@test.local");
+    expect(await prisma.auditLog.count({ where: { action: "PARTICIPANT_CONTACT_CONFIRMED", entityId: existing!.id } })).toBe(1);
   });
 });

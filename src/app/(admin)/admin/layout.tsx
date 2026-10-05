@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "@/lib/auth/session";
 import { UserRole } from "@prisma/client";
+import { prisma } from "@/lib/db/prisma";
 
 import { AdminLogoutButton } from "@/components/admin/AdminLogoutButton";
 
@@ -18,6 +19,9 @@ export default async function AdminLayout({
   if (!session || !session.user || session.user.role !== UserRole.ADMIN) {
     redirect("/login");
   }
+  const program = await prisma.program.findFirst({
+    where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" }, select: { loginLogoUrl: true },
+  });
 
   const navLinks = [
     { href: "/admin", label: "Dashboard" },
@@ -38,8 +42,8 @@ export default async function AdminLayout({
       <header className="border-b border-primary/20 bg-surface px-6 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-md">
         <div className="flex items-center gap-4">
           <Link href="/admin" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-sm font-bold text-premium">
-              JRC
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-premium">
+              {program?.loginLogoUrl ? <img src={program.loginLogoUrl} alt="Logo do Bar JRC" className="h-full w-full object-contain" /> : "JRC"}
             </div>
             <span className="text-sm font-black tracking-wider text-foreground">
               PAINEL ADMIN
