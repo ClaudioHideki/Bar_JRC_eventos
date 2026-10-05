@@ -39,7 +39,7 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Top Header */}
-      <header className="border-b border-primary/20 bg-surface px-6 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-md">
+      <header className="border-b border-primary/20 bg-surface px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-20 shadow-md">
         <div className="flex items-center gap-4">
           <Link href="/admin" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-premium">
@@ -54,7 +54,7 @@ export default async function AdminLayout({
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <a
             href="/api/admin/export"
             download="passaporte-jrc-carimbos.csv"
@@ -62,14 +62,14 @@ export default async function AdminLayout({
           >
             Exportar CSV
           </a>
-          <span className="text-xs text-muted">{session.user.name}</span>
+          <span className="hidden max-w-32 truncate text-xs text-muted sm:inline">{session.user.name}</span>
           <AdminLogoutButton />
         </div>
       </header>
 
       {/* Navegação Secundária */}
-      <nav aria-label="Navegação administrativa" className="border-b border-muted/10 bg-surface/50 px-6 py-2 overflow-x-auto">
-        <div className="flex items-center gap-1 min-w-max">
+      <nav aria-label="Navegação administrativa" className="border-b border-muted/10 bg-surface/50 px-4 py-2 sm:px-6">
+        <div className="flex flex-wrap items-center gap-1">
           {navLinks.map((link) => (
             <Link
               key={link.href}

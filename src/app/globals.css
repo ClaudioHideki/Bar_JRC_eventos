@@ -21,6 +21,34 @@ body {
   min-height: 100vh;
 }
 
+.admin-table-scroll {
+  scrollbar-color: var(--secondary) var(--surface);
+  scrollbar-width: auto;
+}
+
+.admin-table-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+.admin-table-scroll::-webkit-scrollbar-thumb {
+  background: var(--secondary);
+  border: 3px solid var(--surface);
+  border-radius: 999px;
+}
+
+.admin-actions-table th:last-child,
+.admin-actions-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: -8px 0 14px -12px #000;
+}
+
+.admin-actions-table th:last-child {
+  z-index: 2;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

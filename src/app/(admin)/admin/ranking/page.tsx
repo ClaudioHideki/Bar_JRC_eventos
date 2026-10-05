@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { AdminTableScroll } from "@/components/admin/AdminTableScroll";
 import { getOrCreateDefaultProgram } from "@/lib/domain/invitations";
 
 export default async function AdminRankingPage() {
@@ -62,7 +63,7 @@ export default async function AdminRankingPage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface shadow-lg">
-        <div className="overflow-x-auto">
+        <AdminTableScroll label="Tabela de ranking">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-muted/20 bg-background/50 text-muted uppercase text-[10px] font-bold">
               <tr>
@@ -121,7 +122,7 @@ export default async function AdminRankingPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </AdminTableScroll>
       </div>
     </div>
   );

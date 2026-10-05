@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { buildCampaignMessage } from "@/lib/domain/campaign-message";
+import { AdminTableScroll } from "@/components/admin/AdminTableScroll";
 
 type WhatsAppPreparation = { id: string; name: string; phone?: string; imageUrl?: string | null; kind: "LOGIN" | "INVITATION"; status: "PREPARED" | "SKIPPED" | "FAILED"; detail?: string; whatsappUrl?: string };
 type ExistingContact = { id: string; name: string; email: string; phone: string; image: string | null };
@@ -941,8 +942,8 @@ export function AdminConvitesClient({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <AdminTableScroll label="Tabela de convites">
+          <table className="admin-actions-table w-full text-left text-xs">
             <thead className="border-b border-muted/20 bg-background/50 text-[10px] font-bold uppercase text-muted">
               <tr>
                 <th className="p-4">Status</th>
@@ -1118,7 +1119,7 @@ export function AdminConvitesClient({
                     </td>
 
                     <td className="p-4">
-                      <div className="flex min-w-[300px] flex-wrap justify-end gap-2">
+                      <div className="flex w-36 flex-wrap justify-end gap-2 sm:w-44">
                         {isEditing ? (
                           <>
                             <button
@@ -1236,7 +1237,7 @@ export function AdminConvitesClient({
               })}
             </tbody>
           </table>
-        </div>
+        </AdminTableScroll>
       </div>
     </div>
   );

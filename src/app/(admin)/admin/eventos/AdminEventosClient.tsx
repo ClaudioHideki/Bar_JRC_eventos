@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { AdminTableScroll } from "@/components/admin/AdminTableScroll";
 
 interface EventItem {
   id: string;
@@ -554,7 +555,7 @@ export function AdminEventosClient({ initialEvents }: { initialEvents: EventItem
 
       {/* Tabela de Eventos */}
       <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface shadow-lg">
-        <div className="overflow-x-auto">
+        <AdminTableScroll label="Tabela de eventos">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-muted/20 bg-background/50 text-muted uppercase text-[10px] font-bold">
               <tr>
@@ -662,7 +663,7 @@ export function AdminEventosClient({ initialEvents }: { initialEvents: EventItem
               ))}
             </tbody>
           </table>
-        </div>
+        </AdminTableScroll>
       </div>
     </div>
   );

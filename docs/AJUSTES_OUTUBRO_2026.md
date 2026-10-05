@@ -26,3 +26,4 @@
 - O `Dockerfile` executa `prisma migrate deploy` ao iniciar a aplicação. O Compose preserva o volume nomeado `jrc_passaporte_postgres_data`.
 - Fazer backup do volume PostgreSQL antes do deploy, confirmar o banco de destino e verificar a aba da roleta após o deploy. Inicialmente os limites e pesos são zero; o administrador precisa configurá-los antes do primeiro giro.
 - O favicon usa a arte transparente enviada. A página inicial e o cabeçalho administrativo consultam a logo salva no tema ativo.
+- As tabelas administrativas exibem controles de rolagem lateral acima dos dados quando há colunas ocultas. A coluna de ações dos convites permanece visível durante a rolagem, e o menu administrativo quebra em linhas em telas estreitas.

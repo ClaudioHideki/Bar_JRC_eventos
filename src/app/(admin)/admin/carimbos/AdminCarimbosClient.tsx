@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AdminTableScroll } from "@/components/admin/AdminTableScroll";
 
 interface StampItem {
   id: string;
@@ -302,7 +303,7 @@ export function AdminCarimbosClient({
 
       {/* Tabela de Carimbos */}
       <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface shadow-lg">
-        <div className="overflow-x-auto">
+        <AdminTableScroll label="Tabela de carimbos">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-muted/20 bg-background/50 text-muted uppercase text-[10px] font-bold">
               <tr>
@@ -386,7 +387,7 @@ export function AdminCarimbosClient({
               )}
             </tbody>
           </table>
-        </div>
+        </AdminTableScroll>
       </div>
     </div>
   );

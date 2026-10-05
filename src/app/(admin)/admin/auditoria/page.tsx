@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { AdminTableScroll } from "@/components/admin/AdminTableScroll";
 
 export default async function AdminAuditoriaPage() {
   const logs = await prisma.auditLog.findMany({
@@ -24,7 +25,7 @@ export default async function AdminAuditoriaPage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface shadow-lg">
-        <div className="overflow-x-auto">
+        <AdminTableScroll label="Tabela de auditoria">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-muted/20 bg-background/50 text-muted uppercase text-[10px] font-bold">
               <tr>
@@ -80,7 +81,7 @@ export default async function AdminAuditoriaPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </AdminTableScroll>
       </div>
     </div>
   );
