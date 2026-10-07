@@ -17,7 +17,10 @@ export function buildCampaignMessage(input: { kind: "LOGIN" | "INVITATION"; name
   const text = input.kind === "LOGIN"
     ? `${header}\n\nOlá, ${name}! Seu Passaporte Digital está pronto para receber o carimbo de hoje!\n\nPara validar sua participação, faça login no seu Passaporte Digital e procure o atendente mais próximo do evento para validar seu carimbo.\n\n${common}\n\n🔗 Acesse seu Passaporte Digital:\n${input.url}`
     : `${header}\n\nOlá, ${name}! Você recebeu um convite oficial para o Passaporte Digital do Bar JRC.\n\n${common}\n\n🔗 Ative seu Passaporte Digital:\n${input.url}`;
+  const whatsappText = input.kind === "LOGIN"
+    ? `*${header}*\n\nOlá, *${name}*! Seu Passaporte Digital está pronto para receber o carimbo de hoje!\n\nPara validar sua participação, faça login no seu Passaporte Digital e procure o atendente mais próximo do evento para validar seu carimbo.\n\n${common.replace("Importante:", "*Importante:*")}\n\n🔗 *Acesse seu Passaporte Digital:*\n${input.url}`
+    : text;
   const escaped = text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<div style="font-family:Arial,sans-serif;background:#071725;color:#f7f8fa;padding:24px;border-radius:12px"><p style="color:#ed3228;font-weight:700;white-space:pre-line">${escaped.replaceAll("\n", "<br>")}</p></div>`;
-  return { subject: input.kind === "LOGIN" ? "Acesse seu Passaporte Bar JRC" : "Ative seu Passaporte Bar JRC", text, html };
+  return { subject: input.kind === "LOGIN" ? "Acesse seu Passaporte Bar JRC" : "Ative seu Passaporte Bar JRC", text, whatsappText, html };
 }

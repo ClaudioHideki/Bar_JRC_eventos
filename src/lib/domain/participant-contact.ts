@@ -37,5 +37,5 @@ export async function confirmParticipantContact(input: { userId: string; name: s
   });
   const url = `${input.baseUrl.replace(/\/$/, "")}/login`;
   const message = buildCampaignMessage({ kind: "LOGIN", name: user.name, url });
-  return { user, whatsappUrl: `https://api.whatsapp.com/send?phone=${user.phoneE164!.replace(/\D/g, "")}&text=${encodeURIComponent(message.text)}` };
+  return { user, whatsappUrl: `https://api.whatsapp.com/send?phone=${user.phoneE164!.replace(/\D/g, "")}&text=${encodeURIComponent(message.whatsappText)}` };
 }

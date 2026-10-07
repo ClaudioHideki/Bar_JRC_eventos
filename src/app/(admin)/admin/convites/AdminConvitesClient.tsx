@@ -591,7 +591,7 @@ export function AdminConvitesClient({
       ? `phone=${normalizedPhone}&`
       : "";
 
-    const message = buildCampaignMessage({ kind: "INVITATION", name: name || "participante", url: clickableLink }).text;
+    const message = buildCampaignMessage({ kind: "INVITATION", name: name || "participante", url: clickableLink }).whatsappText;
 
     return `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(
       message

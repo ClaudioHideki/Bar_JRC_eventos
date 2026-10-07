@@ -91,9 +91,30 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
       setError("Escolha uma logo PNG, JPEG ou WebP de até 1,5 MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setLoginLogoUrl(String(reader.result));
-    reader.readAsDataURL(file);
+    const image = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = 500;
+      canvas.height = 500;
+      const context = canvas.getContext("2d");
+      if (!context) { setError("Não foi possível processar a logo."); return; }
+      const scale = Math.min(500 / image.naturalWidth, 500 / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      context.drawImage(image, (500 - width) / 2, (500 - height) / 2, width, height);
+      const dataUrl = canvas.toDataURL("image/webp", 0.9);
+      if (dataUrl.length > Math.ceil(1.5 * 1024 * 1024 / 3) * 4 + 64) {
+        setError("A logo processada ultrapassou 1,5 MB. Escolha outra imagem.");
+        return;
+      }
+      setLoginLogoUrl(dataUrl);
+      setError(null);
+      setSuccess("Logo preparada em 500 × 500 px. Clique em Salvar Tema Geral para aplicar.");
+    };
+    image.onerror = () => { URL.revokeObjectURL(objectUrl); setError("Não foi possível abrir a imagem escolhida."); };
+    image.src = objectUrl;
   };
 
   const handleSaveProgramTheme = async (e: React.FormEvent) => {
@@ -295,9 +316,9 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
               </label>
               <div className="flex items-center gap-3 rounded-xl border border-muted/30 bg-background p-3">
                 {loginLogoUrl ? (
-                  <img src={loginLogoUrl} alt="Prévia da logo do login" className="h-16 w-16 object-contain" />
+                  <img src={loginLogoUrl} alt="Prévia da logo do login" className="h-28 w-28 rounded-xl object-contain" />
                 ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-primary/30 font-bold text-premium">JRC</div>
+                  <div className="flex h-28 w-28 items-center justify-center rounded-xl border border-primary/30 font-bold text-premium">JRC</div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => logoInputRef.current?.click()} className="rounded-lg border border-primary/40 px-3 py-2 text-xs font-bold text-primary">Escolher imagem</button>
@@ -305,7 +326,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
                 </div>
                 <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoUpload} className="hidden" />
               </div>
-              <p className="mt-1 text-[11px] text-muted">A nova logo aparece no login após salvar, sem novo deploy.</p>
+              <p className="mt-1 text-[11px] text-muted">A imagem é ajustada para 500 × 500 px ao selecionar. Após salvar, aparece nas telas sem novo deploy.</p>
             </div>
 
             <div>

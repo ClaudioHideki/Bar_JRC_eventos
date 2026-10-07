@@ -4,6 +4,7 @@
 
 - A lista de WhatsApp no painel é manual. Preparar a lista não envia mensagens. Cada conversa precisa ser aberta e enviada pelo administrador.
 - O reenvio para um telefone associado a participante ativo usa uma mensagem de **acesso** com o link de login. Apenas quem ainda não se cadastrou recebe mensagem de **convite**.
+- A mensagem de acesso para participante cadastrado segue o modelo “Seu Passaporte Digital está pronto para receber o carimbo de hoje”, com nome, instrução para procurar o atendente, regra dos 12 carimbos e link de login. O WhatsApp recebe a formatação de negrito compatível com seu texto; a versão de e-mail mantém o destaque vermelho.
 - Nomes, telefones e fotos já cadastradas são exibidos na lista, quando disponíveis. A imagem anexa à conversa deve ser escolhida manualmente no WhatsApp.
 - A lista filtra números válidos e repetidos. O botão **Abrir próximo WhatsApp para envio** abre uma conversa por vez; abrir a conversa não comprova que a mensagem foi enviada.
 - Se o telefone já pertence a um participante ativo, o formulário mostra o cadastro para conferência. **Confirmar dados** salva eventuais correções e prepara uma mensagem de acesso pelo WhatsApp, sem criar outro convite.
@@ -26,4 +27,5 @@
 - O `Dockerfile` executa `prisma migrate deploy` ao iniciar a aplicação. O Compose preserva o volume nomeado `jrc_passaporte_postgres_data`.
 - Fazer backup do volume PostgreSQL antes do deploy, confirmar o banco de destino e verificar a aba da roleta após o deploy. Inicialmente os limites e pesos são zero; o administrador precisa configurá-los antes do primeiro giro.
 - O favicon usa a arte transparente enviada. A página inicial e o cabeçalho administrativo consultam a logo salva no tema ativo.
+- Novas logos escolhidas em Temas são padronizadas em uma imagem quadrada de 500 × 500 px antes de salvar. A exibição aumenta na entrada e no login e mantém proporção responsiva no celular; o cabeçalho mostra uma miniatura.
 - As tabelas administrativas exibem controles de rolagem lateral acima dos dados quando há colunas ocultas. A coluna de ações dos convites permanece visível durante a rolagem, e o menu administrativo quebra em linhas em telas estreitas.

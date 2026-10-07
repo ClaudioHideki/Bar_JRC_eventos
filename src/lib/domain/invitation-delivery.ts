@@ -118,6 +118,6 @@ export async function prepareInvitationWhatsapp(input: {
   return {
     id: invitation.id, name, phone, imageUrl: registered?.image || invitation.usedBy?.image || null,
     kind, status: "PREPARED",
-    whatsappUrl: `https://api.whatsapp.com/send?phone=${phone.replace(/\D/g, "")}&text=${encodeURIComponent(message.text)}`,
+    whatsappUrl: `https://api.whatsapp.com/send?phone=${phone.replace(/\D/g, "")}&text=${encodeURIComponent(message.whatsappText)}`,
   };
 }

@@ -47,6 +47,9 @@ describe("comunicação da campanha", () => {
     expect(message.text).toContain("https://jrc.test/login");
     expect(message.text).not.toContain("Ative seu Passaporte");
     expect(message.text).toContain("setembro de 2027");
+    expect(message.whatsappText).toContain("*🎟️ Passaporte Bar JRC — 40 Anos*");
+    expect(message.whatsappText).toContain("Olá, *Ana*! Seu Passaporte Digital está pronto para receber o carimbo de hoje!");
+    expect(message.whatsappText).toContain("🔗 *Acesse seu Passaporte Digital:*\nhttps://jrc.test/login");
   });
 
   it("envia o link exclusivo de ativação ao convidado pendente", () => {
