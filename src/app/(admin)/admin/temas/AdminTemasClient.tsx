@@ -96,14 +96,14 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
     image.onload = () => {
       URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement("canvas");
-      canvas.width = 500;
-      canvas.height = 500;
+      canvas.width = 800;
+      canvas.height = 800;
       const context = canvas.getContext("2d");
       if (!context) { setError("Não foi possível processar a logo."); return; }
-      const scale = Math.min(500 / image.naturalWidth, 500 / image.naturalHeight);
+      const scale = Math.min(800 / image.naturalWidth, 800 / image.naturalHeight);
       const width = image.naturalWidth * scale;
       const height = image.naturalHeight * scale;
-      context.drawImage(image, (500 - width) / 2, (500 - height) / 2, width, height);
+      context.drawImage(image, (800 - width) / 2, (800 - height) / 2, width, height);
       const dataUrl = canvas.toDataURL("image/webp", 0.9);
       if (dataUrl.length > Math.ceil(1.5 * 1024 * 1024 / 3) * 4 + 64) {
         setError("A logo processada ultrapassou 1,5 MB. Escolha outra imagem.");
@@ -111,7 +111,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
       }
       setLoginLogoUrl(dataUrl);
       setError(null);
-      setSuccess("Logo preparada em 500 × 500 px. Clique em Salvar Tema Geral para aplicar.");
+      setSuccess("Logo preparada em 800 × 800 px. Clique em Salvar Tema Geral para aplicar.");
     };
     image.onerror = () => { URL.revokeObjectURL(objectUrl); setError("Não foi possível abrir a imagem escolhida."); };
     image.src = objectUrl;
@@ -326,7 +326,7 @@ export function AdminTemasClient({ initialTheme, initialEvents }: AdminTemasClie
                 </div>
                 <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoUpload} className="hidden" />
               </div>
-              <p className="mt-1 text-[11px] text-muted">A imagem é ajustada para 500 × 500 px ao selecionar. Após salvar, aparece nas telas sem novo deploy.</p>
+              <p className="mt-1 text-[11px] text-muted">A imagem é ajustada para 800 × 800 px ao selecionar. Após salvar, aparece nas telas sem novo deploy.</p>
             </div>
 
             <div>

@@ -79,7 +79,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground py-10">
       <div className="w-full max-w-md rounded-3xl border border-primary/20 bg-surface p-8 shadow-2xl shadow-primary/10">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-2xl font-bold tracking-wider text-premium border border-primary/30 sm:h-40 sm:w-40">
+          <div className="flex h-44 w-44 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-2xl font-bold tracking-wider text-premium border border-primary/30 sm:h-52 sm:w-52">
             {loginLogoUrl ? <img src={loginLogoUrl} alt="Logo JRC" className="h-full w-full object-contain" /> : "JRC"}
           </div>
 

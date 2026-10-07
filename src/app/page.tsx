@@ -11,7 +11,7 @@ export default async function HomePage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-6 text-center bg-background text-foreground">
       <div className="w-full max-w-md rounded-3xl border border-primary/30 bg-surface/90 p-8 shadow-2xl shadow-primary/20 backdrop-blur">
         <div className="mb-6 flex justify-center">
-          <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-2xl font-black tracking-wider text-premium border border-primary/30 sm:h-40 sm:w-40">
+          <div className="flex h-44 w-44 items-center justify-center overflow-hidden rounded-2xl bg-primary/20 text-2xl font-black tracking-wider text-premium border border-primary/30 sm:h-52 sm:w-52">
             {program?.loginLogoUrl
               ? <img src={program.loginLogoUrl} alt="Logo do Bar JRC" className="h-full w-full object-contain" />
               : "JRC"}

@@ -27,5 +27,5 @@
 - O `Dockerfile` executa `prisma migrate deploy` ao iniciar a aplicação. O Compose preserva o volume nomeado `jrc_passaporte_postgres_data`.
 - Fazer backup do volume PostgreSQL antes do deploy, confirmar o banco de destino e verificar a aba da roleta após o deploy. Inicialmente os limites e pesos são zero; o administrador precisa configurá-los antes do primeiro giro.
 - O favicon usa a arte transparente enviada. A página inicial e o cabeçalho administrativo consultam a logo salva no tema ativo.
-- Novas logos escolhidas em Temas são padronizadas em uma imagem quadrada de 500 × 500 px antes de salvar. A exibição aumenta na entrada e no login e mantém proporção responsiva no celular; o cabeçalho mostra uma miniatura.
+- Novas logos escolhidas em Temas são padronizadas em uma imagem quadrada de 800 × 800 px antes de salvar. A entrada e o login exibem a imagem de forma responsiva; o cabeçalho administrativo amplia a marca mesmo quando a arte contém margens internas.
 - As tabelas administrativas exibem controles de rolagem lateral acima dos dados quando há colunas ocultas. A coluna de ações dos convites permanece visível durante a rolagem, e o menu administrativo quebra em linhas em telas estreitas.
